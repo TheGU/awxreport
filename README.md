@@ -84,6 +84,15 @@ Pass `-debug ./debug` to either subcommand and every API page is dumped to disk 
 
 Memory usage is dominated by the pair counters; sparse worst case is ~60 MB for ~500k unique pairs.
 
+## Documentation
+
+- [Configuration reference](docs/CONFIGURATION.md) — every config field, every env var, every flag.
+- [Deployment](docs/DEPLOYMENT.md) — air-gapped install, scheduled runs, sizing.
+- [Architecture](docs/ARCHITECTURE.md) — data flow, memory model, rate-limit behaviour.
+- [Contributing](CONTRIBUTING.md) — dev setup, tests, commit style.
+- [Changelog](CHANGELOG.md)
+- [Security policy](SECURITY.md)
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

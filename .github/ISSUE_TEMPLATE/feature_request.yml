@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an idea for awxreport
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: A clear description of the use case. Skip "I want X" — start with "When I do Y, I currently can't ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: How might awxreport solve this? CLI flag, config field, new sheet, ...
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, or other tools that solve this differently.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is for awxreport (not for AWX/AAP itself)
+          required: true

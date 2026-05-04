@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: AWX or AAP question
+    url: https://github.com/ansible/awx/discussions
+    about: Issues with AWX/AAP itself (not awxreport) belong upstream.

@@ -1,0 +1,58 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The more we know up front,
+        the faster we can fix it.
+  - type: input
+    id: version
+    attributes:
+      label: awxreport version
+      description: Output of `awxreport version`
+      placeholder: "v0.1.0 (commit abc1234, built 2026-05-04T...)"
+    validations:
+      required: true
+  - type: dropdown
+    id: controller
+    attributes:
+      label: Controller
+      options:
+        - "AWX 24.x"
+        - "AAP 2.5+"
+        - "Other / not sure"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / arch
+      placeholder: "RHEL 9, x86_64"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: |
+        Please paste the full command, full output, and any non-default config.
+        If running with `-debug`, the `requests.log` file is especially helpful —
+        it has no token but shows the URLs and statuses awxreport saw.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Smallest config and commands that trigger the bug.
+    validations:
+      required: true
