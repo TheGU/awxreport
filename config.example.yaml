@@ -1,0 +1,35 @@
+# AWX / AAP rollout report config.
+# Token is NOT read from this file. Set environment variable AWX_TOKEN before running.
+
+# Base URL of the AWX/AAP controller. No trailing slash.
+base_url: "https://awx.dev.example.local"
+
+# API root. AWX 24.x: /api/v2  |  AAP 2.5+: /api/controller/v2
+api_root: "/api/v2"
+
+# How many days of history to include in the report.
+days_back: 30
+
+# Request pacing.
+page_size: 200 # AWX max is 200
+request_pacing_ms: 200 # sleep between page fetches
+http_timeout_sec: 60
+max_retries: 5 # retries on 429 / 5xx with exponential backoff
+
+# TLS. Set to true ONLY for dev with self-signed certs.
+insecure_skip_verify: true
+
+# Output.
+output_dir: "./out" # XLSX + CSV land here
+debug_dir: "" # set to a path (e.g. "./debug") to dump every JSON page
+
+# Exclude noisy templates (e.g. service health checks) from aggregates.
+# Matches are case-insensitive. A template hits the filter if its ID is in `ids`
+# OR its name contains any of the substrings in `name_contains`.
+# Excluded templates still appear in their own sheet so you can audit the filter.
+exclude_templates:
+  ids: []
+  name_contains:
+    - "health check"
+    - "service probe"
+    - "heartbeat"

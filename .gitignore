@@ -1,0 +1,36 @@
+# Build artifacts
+/bin/
+/dist/
+
+# Generated reports & local working data
+/out/
+/data/
+/debug/
+*.xlsx
+*.csv
+
+# Local config (keep config.example.yaml — never commit a populated config)
+/config.yaml
+.env
+.env.*
+
+# Test / coverage
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+/.idea/
+/.vscode/
+.claude/settings.local.json
+*.swp
+*.swo
+
+# Go
+*.exe
+/vendor/
