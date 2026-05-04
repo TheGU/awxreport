@@ -1,5 +1,10 @@
 # awxreport
 
+[![CI](https://github.com/TheGU/awxreport/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TheGU/awxreport/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/TheGU/awxreport?include_prereleases&sort=semver)](https://github.com/TheGU/awxreport/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/TheGU/awxreport)](go.mod)
+
 A small CLI that pulls an AWX / Ansible Automation Platform controller and writes a monthly XLSX + CSV report on playbook and host activity. Single static binary, no runtime dependencies, friendly to air-gapped servers.
 
 ## What it gives you
