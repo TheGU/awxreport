@@ -6,13 +6,13 @@ import "time"
 // retain the full job record — it's heavy and the summaries already carry the
 // template name. We only need the fields the aggregator counts.
 type JobLite struct {
-	ID         int       `json:"id"`
-	Name       string    `json:"name"`
-	Status     string    `json:"status"`
-	Failed     bool      `json:"failed"`
-	Started    time.Time `json:"started"`
-	Finished   time.Time `json:"finished"`
-	JobTemplate int      `json:"job_template"`
+	ID          int       `json:"id"`
+	Name        string    `json:"name"`
+	Status      string    `json:"status"`
+	Failed      bool      `json:"failed"`
+	Started     time.Time `json:"started"`
+	Finished    time.Time `json:"finished"`
+	JobTemplate int       `json:"job_template"`
 }
 
 // SummaryLite is one row from /api/v2/jobs/{id}/job_host_summaries/.
@@ -23,21 +23,21 @@ type JobLite struct {
 // summary_fields.job_template carries the canonical template id+name even
 // when the job's job_template field is missing on certain launch types.
 type SummaryLite struct {
-	ID         int       `json:"id"`
-	Job        int       `json:"job"`
-	Host       *int      `json:"host"`
-	HostName   string    `json:"host_name"`
-	Created    time.Time `json:"created"`
-	Modified   time.Time `json:"modified"`
-	Changed    int       `json:"changed"`
-	Dark       int       `json:"dark"`
-	Failures   int       `json:"failures"`
-	OK         int       `json:"ok"`
-	Processed  int       `json:"processed"`
-	Skipped    int       `json:"skipped"`
-	Failed     bool      `json:"failed"`
-	Ignored    int       `json:"ignored"`
-	Rescued    int       `json:"rescued"`
+	ID            int       `json:"id"`
+	Job           int       `json:"job"`
+	Host          *int      `json:"host"`
+	HostName      string    `json:"host_name"`
+	Created       time.Time `json:"created"`
+	Modified      time.Time `json:"modified"`
+	Changed       int       `json:"changed"`
+	Dark          int       `json:"dark"`
+	Failures      int       `json:"failures"`
+	OK            int       `json:"ok"`
+	Processed     int       `json:"processed"`
+	Skipped       int       `json:"skipped"`
+	Failed        bool      `json:"failed"`
+	Ignored       int       `json:"ignored"`
+	Rescued       int       `json:"rescued"`
 	SummaryFields struct {
 		Host *struct {
 			ID   int    `json:"id"`
@@ -56,11 +56,11 @@ type SummaryLite struct {
 
 // HostLite is what we cache from /api/v2/hosts/.
 type HostLite struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Variables   string `json:"variables"` // YAML or JSON text — may contain ansible_host
-	Inventory   int    `json:"inventory"`
-	Enabled     bool   `json:"enabled"`
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	Variables     string `json:"variables"` // YAML or JSON text — may contain ansible_host
+	Inventory     int    `json:"inventory"`
+	Enabled       bool   `json:"enabled"`
 	SummaryFields struct {
 		Inventory *struct {
 			ID   int    `json:"id"`

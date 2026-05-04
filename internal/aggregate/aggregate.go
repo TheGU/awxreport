@@ -85,18 +85,18 @@ type TemplateAgg struct {
 }
 
 type HostAgg struct {
-	ID            int    // 0 means synthesised (see Aggregator.synthHosts)
+	ID            int // 0 means synthesised (see Aggregator.synthHosts)
 	Name          string
 	AnsibleHost   string
 	InventoryID   int
 	InventoryName string
 	Enabled       bool
 
-	Runs         int64
-	OK           int64 // !failed summaries
-	Failed       int64
-	Dark         int64
-	EverOK       bool
+	Runs   int64
+	OK     int64 // !failed summaries
+	Failed int64
+	Dark   int64
+	EverOK bool
 
 	DistinctTemplates map[int]struct{}
 	LastRun           time.Time // any summary
@@ -132,8 +132,8 @@ type Aggregator struct {
 	synthSeq   int
 
 	// Counters for the report header / log.
-	JobsSeen      int64
-	SummariesSeen int64
+	JobsSeen       int64
+	SummariesSeen  int64
 	UnknownTplJobs int64 // jobs whose template_id is not in lookups
 }
 
@@ -163,10 +163,10 @@ func New(l *awx.Lookups, ex ExcludeRules) *Aggregator {
 		invID, invName := l.HostInventoryName(id)
 		a.Hosts[id] = &HostAgg{
 			ID: id, Name: h.Name,
-			AnsibleHost:   l.AnsibleHost[id],
-			InventoryID:   invID,
-			InventoryName: invName,
-			Enabled:       h.Enabled,
+			AnsibleHost:       l.AnsibleHost[id],
+			InventoryID:       invID,
+			InventoryName:     invName,
+			Enabled:           h.Enabled,
 			DistinctTemplates: make(map[int]struct{}),
 		}
 	}

@@ -114,12 +114,12 @@ func runReport(ctx context.Context, u *ui, opts globalOpts) error {
 	// Final summary.
 	u.section("Done")
 	u.table([][2]string{
-		{"jobs",       fmt.Sprintf("%d", agg.JobsSeen)},
-		{"summaries",  fmt.Sprintf("%d", agg.SummariesSeen)},
-		{"pairs",      fmt.Sprintf("%d", len(agg.Pairs))},
-		{"xlsx",       xlsxPath},
+		{"jobs", fmt.Sprintf("%d", agg.JobsSeen)},
+		{"summaries", fmt.Sprintf("%d", agg.SummariesSeen)},
+		{"pairs", fmt.Sprintf("%d", len(agg.Pairs))},
+		{"xlsx", xlsxPath},
 		{"detail csv", csvOut.Path()},
-		{"elapsed",    time.Since(t0).Truncate(time.Second).String()},
+		{"elapsed", time.Since(t0).Truncate(time.Second).String()},
 	})
 	return nil
 }

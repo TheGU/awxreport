@@ -37,19 +37,19 @@ func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo ti
 	}
 
 	if err := writePlaybooks(f, agg); err != nil {
-		return "", fmt.Errorf("Playbooks sheet: %w", err)
+		return "", fmt.Errorf("playbooks sheet: %w", err)
 	}
 	if err := writeHosts(f, agg); err != nil {
-		return "", fmt.Errorf("Hosts sheet: %w", err)
+		return "", fmt.Errorf("hosts sheet: %w", err)
 	}
 	if err := writePlaybookHosts(f, agg); err != nil {
-		return "", fmt.Errorf("PlaybookHosts sheet: %w", err)
+		return "", fmt.Errorf("playbookhosts sheet: %w", err)
 	}
 	if err := writeExcluded(f, agg); err != nil {
-		return "", fmt.Errorf("Excluded sheet: %w", err)
+		return "", fmt.Errorf("excluded sheet: %w", err)
 	}
 	if err := writeMeta(f, agg, windowFrom, windowTo); err != nil {
-		return "", fmt.Errorf("Meta sheet: %w", err)
+		return "", fmt.Errorf("meta sheet: %w", err)
 	}
 
 	f.SetActiveSheet(0)

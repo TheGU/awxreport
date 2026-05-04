@@ -9,8 +9,8 @@ import (
 )
 
 type ExcludeTemplates struct {
-	IDs           []int    `yaml:"ids"`
-	NameContains  []string `yaml:"name_contains"`
+	IDs          []int    `yaml:"ids"`
+	NameContains []string `yaml:"name_contains"`
 }
 
 type Config struct {

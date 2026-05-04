@@ -24,14 +24,14 @@ import (
 // callers all share the same rate budget — desirable since AWX rate-limiting
 // is global to the user/token.
 type Client struct {
-	BaseURL  string // e.g. https://awx.example.local
-	APIRoot  string // e.g. /api/v2
-	Token    string
+	BaseURL string // e.g. https://awx.example.local
+	APIRoot string // e.g. /api/v2
+	Token   string
 
-	HTTP      *http.Client
-	PageSize  int
-	Pacing    time.Duration
-	MaxRetry  int
+	HTTP     *http.Client
+	PageSize int
+	Pacing   time.Duration
+	MaxRetry int
 
 	// Debug dumping.
 	DebugDir string
