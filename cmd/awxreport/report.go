@@ -11,12 +11,16 @@ import (
 	"github.com/TheGU/awxreport/internal/report"
 )
 
-func runReport(ctx context.Context, u *ui, opts globalOpts) error {
+func runReport(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	cfg, client, err := loadAndConnect(opts)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("close client: %w", err)
+		}
+	}()
 
 	if err := os.MkdirAll(cfg.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("create output dir: %w", err)

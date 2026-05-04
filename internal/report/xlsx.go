@@ -15,9 +15,13 @@ import (
 // WriteXLSX renders the four-sheet report. It uses excelize StreamWriter so
 // the PlaybookHosts sheet (potentially hundreds of thousands of rows) doesn't
 // hold the whole grid in memory.
-func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo time.Time) (string, error) {
+func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo time.Time) (path string, retErr error) {
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
 	// Default sheet "Sheet1" is created by NewFile; rename it for "Playbooks".
 	if err := f.SetSheetName("Sheet1", "Playbooks"); err != nil {
@@ -55,7 +59,7 @@ func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo ti
 	f.SetActiveSheet(0)
 
 	stamp := time.Now().UTC().Format("20060102-150405")
-	path := filepath.Join(outDir, fmt.Sprintf("awx-rollout-%s.xlsx", stamp))
+	path = filepath.Join(outDir, fmt.Sprintf("awx-rollout-%s.xlsx", stamp))
 	if err := f.SaveAs(path); err != nil {
 		return "", err
 	}

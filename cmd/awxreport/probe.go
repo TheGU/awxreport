@@ -8,12 +8,16 @@ import (
 	"github.com/TheGU/awxreport/internal/awx"
 )
 
-func runProbe(ctx context.Context, u *ui, opts globalOpts) error {
+func runProbe(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	cfg, client, err := loadAndConnect(opts)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("close client: %w", err)
+		}
+	}()
 
 	u.banner(fmt.Sprintf("awxreport probe — %s%s", cfg.BaseURL, cfg.APIRoot))
 	u.table([][2]string{

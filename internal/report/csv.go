@@ -2,6 +2,7 @@ package report
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,7 +43,9 @@ func NewDetailCSV(outDir string, stamp time.Time) (*DetailCSV, error) {
 		"template_excluded",
 	}
 	if err := w.Write(header); err != nil {
-		f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 	return &DetailCSV{f: f, w: w}, nil
@@ -92,7 +95,9 @@ func (d *DetailCSV) Write(s awx.SummaryLite, ansibleHost string,
 func (d *DetailCSV) Close() error {
 	d.w.Flush()
 	if err := d.w.Error(); err != nil {
-		d.f.Close()
+		if closeErr := d.f.Close(); closeErr != nil {
+			return errors.Join(err, closeErr)
+		}
 		return err
 	}
 	return d.f.Close()

@@ -134,7 +134,7 @@ Configure noisy template filtering under 'exclude_templates' in config.yaml.`,
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		writeln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }

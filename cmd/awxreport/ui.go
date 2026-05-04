@@ -37,25 +37,33 @@ func newUI(out, errOut io.Writer, useColor, verbose bool) *ui {
 	return &ui{out: out, err: errOut, color: useColor, verbose: verbose}
 }
 
+func writef(w io.Writer, format string, a ...any) {
+	_, _ = fmt.Fprintf(w, format, a...)
+}
+
+func writeln(w io.Writer, a ...any) {
+	_, _ = fmt.Fprintln(w, a...)
+}
+
 func (u *ui) infof(format string, a ...any) {
-	fmt.Fprintf(u.out, format, a...)
+	writef(u.out, format, a...)
 }
 
 func (u *ui) banner(title string) {
 	bar := strings.Repeat("─", len(title)+4)
 	if u.color {
 		c := color.New(color.FgCyan, color.Bold).SprintFunc()
-		fmt.Fprintf(u.out, "%s\n%s\n%s\n", c(bar), c("  "+title), c(bar))
+		writef(u.out, "%s\n%s\n%s\n", c(bar), c("  "+title), c(bar))
 	} else {
-		fmt.Fprintf(u.out, "%s\n  %s\n%s\n", bar, title, bar)
+		writef(u.out, "%s\n  %s\n%s\n", bar, title, bar)
 	}
 }
 
 func (u *ui) section(label string) {
 	if u.color {
-		fmt.Fprintln(u.out, color.New(color.FgCyan, color.Bold).Sprint("\n"+label))
+		writeln(u.out, color.New(color.FgCyan, color.Bold).Sprint("\n"+label))
 	} else {
-		fmt.Fprintln(u.out, "\n"+label)
+		writeln(u.out, "\n"+label)
 	}
 }
 
@@ -64,7 +72,7 @@ func (u *ui) ok(format string, a ...any) {
 	if u.color {
 		prefix = color.GreenString("OK")
 	}
-	fmt.Fprintf(u.out, "  [%s] %s\n", prefix, fmt.Sprintf(format, a...))
+	writef(u.out, "  [%s] %s\n", prefix, fmt.Sprintf(format, a...))
 }
 
 func (u *ui) warn(format string, a ...any) {
@@ -72,7 +80,7 @@ func (u *ui) warn(format string, a ...any) {
 	if u.color {
 		prefix = color.YellowString("WARN")
 	}
-	fmt.Fprintf(u.err, "  [%s] %s\n", prefix, fmt.Sprintf(format, a...))
+	writef(u.err, "  [%s] %s\n", prefix, fmt.Sprintf(format, a...))
 }
 
 func (u *ui) failf(format string, a ...any) {
@@ -80,7 +88,7 @@ func (u *ui) failf(format string, a ...any) {
 	if u.color {
 		prefix = color.RedString("FAIL")
 	}
-	fmt.Fprintf(u.err, "  [%s] %s\n", prefix, fmt.Sprintf(format, a...))
+	writef(u.err, "  [%s] %s\n", prefix, fmt.Sprintf(format, a...))
 }
 
 // progress prints a single transient line if stdout is a TTY, else falls
@@ -94,10 +102,10 @@ func (u *ui) progress(format string, a ...any) {
 	if u.isTTY() {
 		// Erase the previous line and write the new one. Keep cursor on the
 		// same row by emitting CR (no LF) so the next progress call overwrites.
-		fmt.Fprintf(u.out, "\r\033[2K  %s", line)
+		writef(u.out, "\r\033[2K  %s", line)
 		u.lastProg = line
 	} else {
-		fmt.Fprintf(u.out, "  %s\n", line)
+		writef(u.out, "  %s\n", line)
 	}
 }
 
@@ -107,7 +115,7 @@ func (u *ui) progressDone() {
 	u.progressMu.Lock()
 	defer u.progressMu.Unlock()
 	if u.isTTY() && u.lastProg != "" {
-		fmt.Fprintln(u.out)
+		writeln(u.out)
 	}
 	u.lastProg = ""
 }
@@ -136,7 +144,7 @@ func (u *ui) table(rows [][2]string) {
 		} else {
 			key = key + strings.Repeat(" ", maxK-len(r[0]))
 		}
-		fmt.Fprintf(u.out, "  %s  %s\n", key, r[1])
+		writef(u.out, "  %s  %s\n", key, r[1])
 	}
 }
 

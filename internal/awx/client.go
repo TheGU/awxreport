@@ -173,7 +173,10 @@ func (c *Client) Get(ctx context.Context, endpoint, urlStr string) ([]byte, erro
 		}
 
 		body, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		closeErr := resp.Body.Close()
+		if readErr == nil && closeErr != nil {
+			readErr = closeErr
+		}
 		c.logRequest(endpoint, urlStr, resp.StatusCode, latency, readErr)
 		if readErr != nil {
 			lastErr = readErr
@@ -247,7 +250,7 @@ func (c *Client) logRequest(endpoint, urlStr string, status int, latency time.Du
 	if err != nil {
 		errStr = " err=" + err.Error()
 	}
-	fmt.Fprintf(c.logFile, "%s endpoint=%s status=%d latency_ms=%d url=%s%s\n",
+	_, _ = fmt.Fprintf(c.logFile, "%s endpoint=%s status=%d latency_ms=%d url=%s%s\n",
 		time.Now().UTC().Format(time.RFC3339Nano), endpoint, status, latency.Milliseconds(), urlStr, errStr)
 }
 

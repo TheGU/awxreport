@@ -116,11 +116,6 @@ func (c *Client) Probe(ctx context.Context, daysBack int) (*ProbeResult, error) 
 		}
 		var picked *jobLite
 		err := c.Paginate(ctx, "jobs", "jobs/", q, func(ctx context.Context, p Page) error {
-			if res.JobsInWindow == 0 {
-				// Capture the total count from the first list call (without status
-				// filter) below; this branch never runs because we only call this
-				// helper after the count is known.
-			}
 			var rows []jobLite
 			if err := json.Unmarshal(p.Results, &rows); err != nil {
 				return fmt.Errorf("decode jobs: %w", err)
