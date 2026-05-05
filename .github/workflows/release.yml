@@ -35,3 +35,6 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # When both a prerelease tag and a final tag point at the same
+          # commit, do not let GoReleaser guess from git tag ordering.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
