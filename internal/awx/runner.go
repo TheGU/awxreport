@@ -15,7 +15,7 @@ type JobVisitor func(j JobLite) error
 // streaming order — the caller is expected to aggregate and discard.
 type SummaryVisitor func(s SummaryLite) error
 
-// IterateJobsWithSummaries pages through completed jobs in [since, now] and
+// IterateJobsWithSummaries pages through completed jobs in [since, until) and
 // for each job pages through its job_host_summaries.
 //
 // We do NOT hold all jobs or summaries in memory. Each call is one page; the
@@ -25,14 +25,15 @@ type SummaryVisitor func(s SummaryLite) error
 // Heuristics:
 //   - Order jobs ascending by id, so debug dumps are deterministic across
 //     re-runs of the same window.
-//   - We only request `finished__gte=...`. Running/pending jobs in the window
-//     have no `finished` set yet and are excluded — desirable for a monthly
-//     report that should reflect completed runs.
-func (c *Client) IterateJobsWithSummaries(ctx context.Context, since time.Time,
+//   - We filter on `finished__gte` / `finished__lt`. Running/pending jobs in
+//     the window have no `finished` set yet and are excluded — desirable for
+//     a monthly report that should reflect completed runs.
+func (c *Client) IterateJobsWithSummaries(ctx context.Context, since, until time.Time,
 	onJob JobVisitor, onSummary SummaryVisitor) error {
 
 	jobsQ := url.Values{
 		"finished__gte": []string{since.UTC().Format(time.RFC3339)},
+		"finished__lt":  []string{until.UTC().Format(time.RFC3339)},
 		"order_by":      []string{"id"},
 	}
 

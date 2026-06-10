@@ -11,7 +11,32 @@ import (
 	"github.com/TheGU/awxreport/internal/report"
 )
 
-func runReport(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
+// reportWindow resolves the export window. startStr and endStr are
+// YYYY-MM-DD dates in UTC; the end date is inclusive. A missing end defaults
+// to now; a missing start defaults to daysBack days before the end.
+func reportWindow(startStr, endStr string, daysBack int, now time.Time) (since, until time.Time, err error) {
+	until = now
+	if endStr != "" {
+		d, err := time.ParseInLocation("2006-01-02", endStr, time.UTC)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid --end-date %q: want YYYY-MM-DD", endStr)
+		}
+		until = d.AddDate(0, 0, 1) // inclusive end date
+	}
+	since = until.AddDate(0, 0, -daysBack)
+	if startStr != "" {
+		since, err = time.ParseInLocation("2006-01-02", startStr, time.UTC)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid --start-date %q: want YYYY-MM-DD", startStr)
+		}
+	}
+	if !since.Before(until) {
+		return time.Time{}, time.Time{}, fmt.Errorf("start date must not be after end date")
+	}
+	return since, until, nil
+}
+
+func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate string) (retErr error) {
 	cfg, client, err := loadAndConnect(opts)
 	if err != nil {
 		return err
@@ -27,12 +52,16 @@ func runReport(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	}
 
 	now := time.Now().UTC()
-	since := now.AddDate(0, 0, -cfg.DaysBack)
+	since, until, err := reportWindow(startDate, endDate, cfg.DaysBack, now)
+	if err != nil {
+		return err
+	}
 
 	u.banner(fmt.Sprintf("awxreport — %s%s", cfg.BaseURL, cfg.APIRoot))
 	u.table([][2]string{
-		{"window", fmt.Sprintf("%s .. %s (%d days)",
-			since.Format(time.RFC3339), now.Format(time.RFC3339), cfg.DaysBack)},
+		{"window", fmt.Sprintf("%s .. %s (%.0f days)",
+			since.Format(time.RFC3339), until.Format(time.RFC3339),
+			until.Sub(since).Hours()/24)},
 		{"output", cfg.OutputDir},
 		{"pacing", fmt.Sprintf("%dms", cfg.RequestPacingMS)},
 		{"page size", fmt.Sprintf("%d", cfg.PageSize)},
@@ -61,7 +90,7 @@ func runReport(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	}
 
 	t1 := time.Now()
-	err = client.IterateJobsWithSummaries(ctx, since,
+	err = client.IterateJobsWithSummaries(ctx, since, until,
 		func(j awx.JobLite) error {
 			agg.AddJob(j)
 			if int(agg.JobsSeen)%10 == 0 {
@@ -109,7 +138,7 @@ func runReport(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	// Step 3: render XLSX.
 	u.section("[3/3] Rendering XLSX")
 	t2 := time.Now()
-	xlsxPath, err := report.WriteXLSX(cfg.OutputDir, agg, since, now)
+	xlsxPath, err := report.WriteXLSX(cfg.OutputDir, agg, since, until)
 	if err != nil {
 		return fmt.Errorf("write xlsx: %w", err)
 	}
