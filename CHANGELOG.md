@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Bump `github.com/urfave/cli/v3` to 3.9.0 and `github.com/mattn/go-isatty`
+  to 0.0.22. Release workflow now uses goreleaser-action v7 (Node 24).
+
 ## [0.1.1] - 2026-06-10
 
 ### Added
