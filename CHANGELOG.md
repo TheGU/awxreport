@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bump `github.com/urfave/cli/v3` to 3.9.0 and `github.com/mattn/go-isatty`
+  to 0.0.22. Release workflow now uses goreleaser-action v7 (Node 24).
+
+## [0.1.1] - 2026-06-10
+
+### Added
+- `--start-date` / `--end-date` flags on `report` to export an explicit window
+  (YYYY-MM-DD, UTC, end date inclusive) instead of the relative `days_back`.
+
+### Fixed
+- GoReleaser picking the wrong tag when multiple tags point at the same commit.
+
+## [0.1.0] - 2026-05-04
+
 ### Added
 - Initial public release scaffold: AWX/AAP REST client, streaming aggregator,
   XLSX + CSV writers, `probe` and `report` subcommands.

@@ -20,6 +20,14 @@ base_url: "https://awx.example.com"
 ### `days_back` (integer, default `30`)
 Report window in days. The window is `[now - days_back, now]` and uses the job's `finished` timestamp.
 
+Override per run with the `report` command's `--start-date` / `--end-date` flags
+(`YYYY-MM-DD`, UTC, end date inclusive). Either flag works alone: a missing end
+defaults to now, a missing start defaults to `days_back` days before the end.
+
+```bash
+awxreport report --start-date 2026-05-01 --end-date 2026-05-31
+```
+
 ### `page_size` (integer, default `200`)
 Page size used for paginated list endpoints. AWX caps this at 200; values outside `1..200` are rejected at startup.
 

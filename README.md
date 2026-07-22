@@ -63,7 +63,7 @@ Key fields (see `config.example.yaml` for the full set):
 |---|---|---|
 | `base_url` | — | AWX/AAP URL, no trailing slash |
 | `api_root` | `/api/v2` | `/api/v2` for AWX 24.x, `/api/controller/v2` for AAP 2.5+ |
-| `days_back` | `30` | report window |
+| `days_back` | `30` | report window (override per run with `report --start-date/--end-date`) |
 | `page_size` | `200` | paginated page size (AWX max is 200) |
 | `request_pacing_ms` | `200` | delay between API requests |
 | `max_retries` | `5` | retries on 429/5xx with exponential backoff |

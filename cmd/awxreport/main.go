@@ -58,8 +58,9 @@ func main() {
 		Description: `awxreport pulls an AWX or AAP controller and writes a monthly XLSX with
 playbook and host activity, plus a flat CSV of every job_host_summary row.
 
-The report is scoped by 'days_back' in the config (default 30). The token is
-read from the AWX_TOKEN environment variable; it is never read from the file.
+The report is scoped by 'days_back' in the config (default 30); the report
+command's --start-date/--end-date flags override it. The token is read from
+the AWX_TOKEN environment variable; it is never read from the file.
 
 See https://github.com/TheGU/awxreport for full documentation.`,
 		Flags: []cli.Flag{
@@ -108,10 +109,22 @@ summaries, aggregates per-template and per-host counters, and writes:
                                      PlaybookHosts, Excluded, Meta)
   out/awx-rollout-detail-<ts>.csv    one row per job_host_summary
 
-Configure noisy template filtering under 'exclude_templates' in config.yaml.`,
+Configure noisy template filtering under 'exclude_templates' in config.yaml.
+Use --start-date/--end-date to export an explicit window instead of days_back.`,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "start-date",
+						Usage: "export window start, inclusive (YYYY-MM-DD, UTC; overrides days_back)",
+					},
+					&cli.StringFlag{
+						Name:  "end-date",
+						Usage: "export window end, inclusive (YYYY-MM-DD, UTC; default now)",
+					},
+				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					return withSignalContext(ctx, func(ctx context.Context) error {
-						return runReport(ctx, uiFromCmd(c), optsFromCmd(c))
+						return runReport(ctx, uiFromCmd(c), optsFromCmd(c),
+							c.String("start-date"), c.String("end-date"))
 					})
 				},
 			},
