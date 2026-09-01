@@ -25,6 +25,8 @@ The XLSX has four data sheets — `Playbooks`, `Hosts`, `PlaybookHosts` (the cro
 
 On a production controller a full job walk can take too long to finish between scheduled runs. Selective mode scopes the report to a list of job template and/or project IDs, filtering jobs server-side instead of walking every job: set them under `include` in `config.yaml`, or override ad-hoc with `--template-ids`/`--project-ids`. See [Configuration](docs/CONFIGURATION.md) for details and caveats.
 
+Full runs are faster too: the jobs walk uses keyset pagination and fetches summaries with bounded concurrency (`summary_workers`), and an opt-in `summary_strategy: per_host` trades a small fidelity loss for far fewer requests on job-heavy controllers; `--full` runs a full report for one invocation without editing `config.yaml`.
+
 ## Why a separate tool
 
 AWX's built-in dashboard is real-time and per-organization; it doesn't roll up a month of activity in a way you can hand to leadership. This tool is read-only against the AWX REST API, never touches the database, and produces files you can email or check into a wiki.

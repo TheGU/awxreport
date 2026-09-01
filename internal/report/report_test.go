@@ -231,6 +231,106 @@ func TestWriteXLSX_SelectiveMetaRows_NotMeasured(t *testing.T) {
 	}
 }
 
+func TestWriteXLSX_PerHostMetaRows(t *testing.T) {
+	a := newAgg(t)
+	dir := t.TempDir()
+	from := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	meta := RunMeta{
+		Strategy:    "per_host",
+		Workers:     4,
+		HostsWalked: 123,
+		HostPruning: "active-host filter",
+	}
+
+	path, err := WriteXLSX(dir, a, from, to, meta)
+	if err != nil {
+		t.Fatalf("WriteXLSX: %v", err)
+	}
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rows, err := f.GetRows("Meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"Summary strategy": "per_host",
+		"Summary workers":  "4",
+		"Hosts walked":     "123",
+		"Host pruning":     "active-host filter",
+	}
+	found := map[string]bool{}
+	noteFound := false
+	for _, r := range rows {
+		if len(r) < 2 {
+			continue
+		}
+		if wantVal, ok := want[r[0]]; ok && r[1] == wantVal {
+			found[r[0]] = true
+		}
+		if r[0] == "Note" && strings.Contains(r[1], "host null") {
+			noteFound = true
+		}
+	}
+	for k := range want {
+		if !found[k] {
+			t.Errorf("Meta sheet missing row %q: %v", k, rows)
+		}
+	}
+	if !noteFound {
+		t.Errorf("Meta sheet missing per_host fidelity Note row: %v", rows)
+	}
+}
+
+func TestWriteXLSX_FullOverrideMetaRow(t *testing.T) {
+	a := newAgg(t)
+	dir := t.TempDir()
+	from := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	meta := RunMeta{
+		Strategy:           "per_job",
+		Workers:            4,
+		HostsWalked:        -1,
+		FullOverride:       true,
+		IgnoredTemplateIDs: []int{4, 9},
+		IgnoredProjectIDs:  []int{2},
+	}
+
+	path, err := WriteXLSX(dir, a, from, to, meta)
+	if err != nil {
+		t.Fatalf("WriteXLSX: %v", err)
+	}
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rows, err := f.GetRows("Meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rows {
+		if len(r) < 2 {
+			continue
+		}
+		if r[0] == "Full mode forced by --full" {
+			found = true
+			if !strings.Contains(r[1], "4,9") || !strings.Contains(r[1], "2") {
+				t.Errorf("Full override row = %q, want it to mention ignored ids", r[1])
+			}
+		}
+	}
+	if !found {
+		t.Error("Meta sheet missing 'Full mode forced by --full' row")
+	}
+}
+
 func TestDetailCSV_HeaderAndRow(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)

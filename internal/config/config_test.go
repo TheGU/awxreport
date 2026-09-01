@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +41,61 @@ func TestLoad_AppliesDefaults(t *testing.T) {
 	}
 	if c.OutputDir != "./out" {
 		t.Errorf("OutputDir default = %q, want ./out", c.OutputDir)
+	}
+	if c.SummaryWorkers != 4 {
+		t.Errorf("SummaryWorkers default = %d, want 4", c.SummaryWorkers)
+	}
+	if c.SummaryStrategy != "per_job" {
+		t.Errorf("SummaryStrategy default = %q, want per_job", c.SummaryStrategy)
+	}
+}
+
+func TestLoad_SummaryWorkersValidation(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "tok")
+	// summary_workers: 0 is treated as "use default" (like page_size), so it
+	// passes validation; only out-of-range values should be rejected.
+	for _, w := range []int{9, -1} {
+		body := "base_url: https://awx.example.com\nsummary_workers: " + itoa(w) + "\n"
+		p := writeYAML(t, body)
+		if _, err := Load(p); err == nil {
+			t.Errorf("summary_workers=%d should be rejected", w)
+		}
+	}
+	for _, w := range []int{1, 8} {
+		body := "base_url: https://awx.example.com\nsummary_workers: " + itoa(w) + "\n"
+		p := writeYAML(t, body)
+		c, err := Load(p)
+		if err != nil {
+			t.Errorf("summary_workers=%d should be accepted: %v", w, err)
+			continue
+		}
+		if c.SummaryWorkers != w {
+			t.Errorf("SummaryWorkers = %d, want %d", c.SummaryWorkers, w)
+		}
+	}
+}
+
+func TestLoad_SummaryStrategyValidation(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "tok")
+	p := writeYAML(t, "base_url: https://awx.example.com\nsummary_strategy: auto\n")
+	_, err := Load(p)
+	if err == nil {
+		t.Fatal("summary_strategy: auto should be rejected")
+	}
+	if !strings.Contains(err.Error(), "per_job") || !strings.Contains(err.Error(), "per_host") {
+		t.Errorf("err = %q, want it to name the allowed values (per_job, per_host)", err.Error())
+	}
+
+	for _, strategy := range []string{"per_job", "per_host"} {
+		p := writeYAML(t, "base_url: https://awx.example.com\nsummary_strategy: "+strategy+"\n")
+		c, err := Load(p)
+		if err != nil {
+			t.Errorf("summary_strategy=%s should be accepted: %v", strategy, err)
+			continue
+		}
+		if c.SummaryStrategy != strategy {
+			t.Errorf("SummaryStrategy = %q, want %q", c.SummaryStrategy, strategy)
+		}
 	}
 }
 

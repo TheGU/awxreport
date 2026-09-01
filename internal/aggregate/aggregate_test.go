@@ -250,6 +250,28 @@ func TestNew_SelectivePrePopulatesOnlySelectedTemplates(t *testing.T) {
 	}
 }
 
+func TestAddSummary_IncrementsSummariesUnknownTplWhenJobFieldsMissing(t *testing.T) {
+	a := newTestAgg(t, NewExcludeRules(nil, nil))
+	s := mkSummary(1, 6, 40, "Check Auth Key", false, fixedT(1))
+	s.SummaryFields.Job = nil // simulate a controller that omitted summary_fields.job
+	a.AddSummary(s)
+
+	if a.SummariesUnknownTpl != 1 {
+		t.Errorf("SummariesUnknownTpl = %d, want 1", a.SummariesUnknownTpl)
+	}
+	if a.SummariesSeen != 1 {
+		t.Errorf("SummariesSeen = %d, want 1", a.SummariesSeen)
+	}
+	if len(a.Pairs) != 0 {
+		t.Errorf("Pairs = %v, want empty (row could not be bucketed)", a.Pairs)
+	}
+
+	a.AddSummary(mkSummary(2, 6, 40, "Check Auth Key", false, fixedT(2)))
+	if a.SummariesUnknownTpl != 1 {
+		t.Errorf("SummariesUnknownTpl = %d, want 1 (unaffected by a resolvable summary)", a.SummariesUnknownTpl)
+	}
+}
+
 func TestNew_SelectiveLeavesHostsEmptyUntilSummaries(t *testing.T) {
 	a := newTestAggSelected(t, NewExcludeRules(nil, nil), []int{40})
 	if len(a.Hosts) != 0 {

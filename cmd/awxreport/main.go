@@ -117,7 +117,10 @@ Selective mode scopes the report to specific job templates and/or projects
 instead of walking every job. Configure it under 'include' in config.yaml
 (template_ids / project_ids), or override at the command line with
 --template-ids/--project-ids; flags replace the config lists, they do not
-merge with them. exclude_templates rules still win over include.`,
+merge with them. exclude_templates rules still win over include.
+
+Pass --full to ignore the include block entirely and run a full report;
+--full cannot be combined with --template-ids/--project-ids.`,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "start-date",
@@ -137,6 +140,10 @@ merge with them. exclude_templates rules still win over include.`,
 						Usage:  "project IDs whose job templates are included; replaces include.project_ids from config",
 						Config: cli.IntegerConfig{Base: 10},
 					},
+					&cli.BoolFlag{
+						Name:  "full",
+						Usage: "ignore the include block in config and run a full report",
+					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					return withSignalContext(ctx, func(ctx context.Context) error {
@@ -145,6 +152,7 @@ merge with them. exclude_templates rules still win over include.`,
 							endDate:     c.String("end-date"),
 							templateIDs: c.IntSlice("template-ids"),
 							projectIDs:  c.IntSlice("project-ids"),
+							full:        c.Bool("full"),
 						})
 					})
 				},

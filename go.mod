@@ -7,6 +7,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22
 	github.com/urfave/cli/v3 v3.9.0
 	github.com/xuri/excelize/v2 v2.10.1
+	golang.org/x/sync v0.22.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

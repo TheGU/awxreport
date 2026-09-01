@@ -52,7 +52,11 @@ Public API (`internal/`) is intentionally not exported — this is a tool, not a
    (5 sheets via streamwriter)         (one row per summary)
 ```
 
-In selective mode, `IterateJobs` additionally applies a server-side `job_template__in` filter (chunked into batches of 200 ids) so only jobs for the selected templates are ever fetched.
+In selective mode, the jobs walk additionally applies a server-side `job_template__in` filter (chunked into batches of 200 ids) so only jobs for the selected templates are ever fetched.
+
+The jobs walk itself (`IterateJobs`, and the jobs half of `IterateJobsWithSummaries`) uses keyset pagination: each request adds `order_by=id` and, once at least one page has been seen, `id__gt=<last id on the previous page>`, instead of following the envelope's `next` link. This makes the walk correct against controllers where the `next` link's total shrinks as filtered rows are consumed (keyset position is anchored to `id`, not `page`), and it terminates strictly on an empty page rather than a short one, since page size can be server-capped below what was requested. Within `IterateJobsWithSummaries`, each page's per-job summary fetches run concurrently (bounded by `summary_workers`) via `errgroup`, serialized back through a shared mutex before the aggregator or CSV writer sees a row.
+
+The default `summary_strategy: per_job` fetches summaries per job, as above. The opt-in `summary_strategy: per_host` instead walks `hosts/{id}/job_host_summaries/` for every active host (`IterateHostSummaries`, same bounded-concurrency + shared-mutex pattern), trading full fidelity -- it cannot see summary rows for a null or since-deleted host -- for far fewer requests on job-heavy controllers. It is not available in selective mode.
 
 ## Why per-job iteration
 

@@ -23,6 +23,24 @@ type RunMeta struct {
 	RemovedByExclude     []int
 	TotalJobsInWindow    int // unfiltered controller count; -1 when not measured
 	ResolvedAt           time.Time
+
+	// Strategy is the summary fetch strategy used ("per_job" or "per_host").
+	Strategy string
+	// Workers is the configured summary_workers value.
+	Workers int
+	// HostsWalked is the number of hosts walked by IterateHostSummaries;
+	// -1 when Strategy is not "per_host" (the field does not apply).
+	HostsWalked int
+	// HostPruning describes how the per_host host set was chosen, e.g.
+	// "active-host filter" or "unsupported, walked all hosts". Empty when
+	// Strategy is not "per_host".
+	HostPruning string
+
+	// FullOverride is true when --full ignored a non-empty include block
+	// from the config file.
+	FullOverride       bool
+	IgnoredTemplateIDs []int
+	IgnoredProjectIDs  []int
 }
 
 // WriteXLSX renders the four-sheet report. It uses excelize StreamWriter so
@@ -280,6 +298,21 @@ func writeMeta(f *excelize.File, agg *aggregate.Aggregator, from, to time.Time, 
 		{"Templates in lookup", len(agg.Lookups.Templates)},
 		{"Hosts in lookup", len(agg.Lookups.Hosts)},
 		{"Inventories in lookup", len(agg.Lookups.Inventories)},
+		{"Summary strategy", meta.Strategy},
+		{"Summary workers", meta.Workers},
+		{"Summaries with unknown template", agg.SummariesUnknownTpl},
+	}
+	if meta.Strategy == "per_host" {
+		rows = append(rows,
+			[]any{"Hosts walked", meta.HostsWalked},
+			[]any{"Host pruning", meta.HostPruning},
+			[]any{"Note", "per_host cannot see summary rows whose host record is gone: rows with host null (ad-hoc and localhost plays) and rows for hosts deleted since their jobs ran are missing from this report"},
+		)
+	}
+	if meta.FullOverride {
+		rows = append(rows, []any{"Full mode forced by --full",
+			fmt.Sprintf("ignored include.template_ids=%s include.project_ids=%s",
+				joinIDsOrNone(meta.IgnoredTemplateIDs), joinIDsOrNone(meta.IgnoredProjectIDs))})
 	}
 	if meta.Selective {
 		var totalJobsCell, skippedCell any

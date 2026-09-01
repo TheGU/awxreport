@@ -52,6 +52,22 @@ func runProbe(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	default:
 		u.warn("job_template__in filter check failed: %s (selective mode may not work)", res.TemplateFilterErr)
 	}
+	switch {
+	case !res.KeysetTested:
+		u.warn("keyset pagination (id__gt) not tested")
+	case res.KeysetOK:
+		u.ok("keyset pagination (id__gt): supported")
+	default:
+		u.warn("keyset pagination (id__gt) check failed: %s", res.KeysetErr)
+	}
+	switch {
+	case !res.PerHostFinishedFilterTested:
+		u.warn("per-host job__finished filter not tested: no hosts on controller")
+	case res.PerHostFinishedFilterOK:
+		u.ok("per-host job__finished filter (hosts/<id>/job_host_summaries/): supported")
+	default:
+		u.warn("per-host job__finished filter check failed: %s (summary_strategy per_host may not work)", res.PerHostFinishedFilterErr)
+	}
 	if res.SampleJobID != 0 {
 		u.ok("sample job: id=%d %q status=%s — %d host summaries",
 			res.SampleJobID, res.SampleJobName, res.SampleJobStatus, res.SampleSummariesGot)

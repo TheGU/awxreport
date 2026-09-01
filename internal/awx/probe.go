@@ -26,6 +26,19 @@ type ProbeResult struct {
 	TemplateFilterTested bool
 	TemplateFilterOK     bool
 	TemplateFilterErr    string
+
+	// KeysetTested/OK/Err probes jobs/?id__gt=0, the filter keyset
+	// pagination depends on. Always tested -- it needs no sample data.
+	KeysetTested bool
+	KeysetOK     bool
+	KeysetErr    string
+
+	// PerHostFinishedFilterTested/OK/Err probes hosts/<id>/job_host_summaries/
+	// ?job__finished__gte=..., the filter summary_strategy: per_host depends
+	// on. Stays untested when the controller has no hosts to sample.
+	PerHostFinishedFilterTested bool
+	PerHostFinishedFilterOK     bool
+	PerHostFinishedFilterErr    string
 }
 
 // Probe walks the same endpoints the report will use, but pulls only one
@@ -181,6 +194,102 @@ func (c *Client) Probe(ctx context.Context, daysBack int) (*ProbeResult, error) 
 				res.TemplateFilterErr = filterErr.Error()
 			} else {
 				res.TemplateFilterOK = true
+			}
+		}
+	}
+
+	// Keyset pagination (id__gt) support probe. A single request against
+	// id__gt=0 would return 200 even from a proxy that strips the filter
+	// entirely, so that alone is not evidence. Instead: find the newest job
+	// id, then request id__gt=<that id>, which must return zero rows if the
+	// filter is honored -- any row coming back (its id can only be <= the
+	// newest, since nothing newer exists) means the controller ignored it.
+	// KeysetTested stays false when there is no job to probe with -- not
+	// evidence either way.
+	{
+		var newestID int
+		nerr := c.Paginate(ctx, "jobs", "jobs/", url.Values{
+			"order_by":  []string{"-id"},
+			"page_size": []string{"1"},
+		}, func(ctx context.Context, p Page) error {
+			var rows []struct {
+				ID int `json:"id"`
+			}
+			if err := json.Unmarshal(p.Results, &rows); err != nil {
+				return fmt.Errorf("decode jobs: %w", err)
+			}
+			if len(rows) > 0 {
+				newestID = rows[0].ID
+			}
+			return errStop
+		})
+		if nerr != nil && nerr != errStop {
+			return res, fmt.Errorf("jobs (keyset probe, newest id): %w", nerr)
+		}
+		if newestID != 0 {
+			res.KeysetTested = true
+			var gotRow bool
+			var gotID int
+			kerr := c.Paginate(ctx, "jobs", "jobs/", url.Values{
+				"id__gt":    []string{strconv.Itoa(newestID)},
+				"page_size": []string{"1"},
+			}, func(ctx context.Context, p Page) error {
+				var rows []struct {
+					ID int `json:"id"`
+				}
+				if err := json.Unmarshal(p.Results, &rows); err != nil {
+					return fmt.Errorf("decode jobs: %w", err)
+				}
+				if len(rows) > 0 {
+					gotRow, gotID = true, rows[0].ID
+				}
+				return errStop
+			})
+			switch {
+			case kerr != nil && kerr != errStop:
+				res.KeysetErr = kerr.Error()
+			case gotRow:
+				res.KeysetErr = fmt.Sprintf("id__gt=%d still returned job %d; the controller ignored the filter", newestID, gotID)
+			default:
+				res.KeysetOK = true
+			}
+		}
+	}
+
+	// Per-host job__finished filter support probe (needs a sample host id
+	// for the URL path). PerHostFinishedFilterTested stays false when the
+	// controller has no hosts to sample -- not evidence either way.
+	{
+		var hostID int
+		herr := c.Paginate(ctx, "hosts", "hosts/", url.Values{"page_size": []string{"1"}},
+			func(ctx context.Context, p Page) error {
+				var rows []struct {
+					ID int `json:"id"`
+				}
+				if err := json.Unmarshal(p.Results, &rows); err != nil {
+					return fmt.Errorf("decode hosts: %w", err)
+				}
+				if len(rows) > 0 {
+					hostID = rows[0].ID
+				}
+				return errStop
+			})
+		if herr != nil && herr != errStop {
+			return res, fmt.Errorf("hosts (per-host filter probe): %w", herr)
+		}
+		if hostID != 0 {
+			res.PerHostFinishedFilterTested = true
+			path := fmt.Sprintf("hosts/%d/job_host_summaries/", hostID)
+			perr := c.Paginate(ctx, "job_host_summaries", path, url.Values{
+				"job__finished__gte": []string{res.WindowFrom},
+				"page_size":          []string{"1"},
+			}, func(ctx context.Context, p Page) error {
+				return errStop
+			})
+			if perr != nil && perr != errStop {
+				res.PerHostFinishedFilterErr = perr.Error()
+			} else {
+				res.PerHostFinishedFilterOK = true
 			}
 		}
 	}
