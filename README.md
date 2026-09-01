@@ -23,6 +23,8 @@ For every host:
 
 The XLSX has four data sheets — `Playbooks`, `Hosts`, `PlaybookHosts` (the cross-product, ready for pivoting), `Excluded` (templates filtered out by config) — plus a `Meta` sheet with run provenance. Every job_host_summary row is also written to a CSV alongside, for downstream processing.
 
+On a production controller a full job walk can take too long to finish between scheduled runs. Selective mode scopes the report to a list of job template and/or project IDs, filtering jobs server-side instead of walking every job: set them under `include` in `config.yaml`, or override ad-hoc with `--template-ids`/`--project-ids`. See [Configuration](docs/CONFIGURATION.md) for details and caveats.
+
 ## Why a separate tool
 
 AWX's built-in dashboard is real-time and per-organization; it doesn't roll up a month of activity in a way you can hand to leadership. This tool is read-only against the AWX REST API, never touches the database, and produces files you can email or check into a wiki.
@@ -55,7 +57,7 @@ Output lands in `./out/awx-rollout-<timestamp>.xlsx` and `./out/awx-rollout-deta
 
 ## Configuration
 
-All knobs live in `config.yaml`. The token is read only from the `AWX_TOKEN` env var — never from the file.
+All knobs live in `config.yaml`. The token is read from the `AWX_TOKEN` env var, or from the `token` key in the file as a fallback for scheduled runs; `AWX_TOKEN` wins when both are set.
 
 Key fields (see `config.example.yaml` for the full set):
 

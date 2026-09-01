@@ -57,6 +57,8 @@ A cron entry on the same host:
 0 2 1 * * cd /opt/awxreport && AWX_TOKEN=$(cat /etc/awxreport/token) ./awxreport report >> /var/log/awxreport.log 2>&1
 ```
 
+Alternatively, set `token` directly in `config.yaml` and drop `AWX_TOKEN=$(cat ...)` from the cron line entirely; restrict `config.yaml`'s permissions (`chmod 600`) the same way you would the token file above. `AWX_TOKEN`, when set, still overrides whatever is in the file.
+
 Tips:
 
 - Store the token in a file readable only by the cron user: `chmod 600 /etc/awxreport/token`.
@@ -102,5 +104,5 @@ For an environment with 10k hosts and 100k completed jobs in a 30-day window:
 
 - **CPU**: dominated by JSON parsing; one core is enough.
 - **Memory**: peak ~250 MB during aggregation (sparse pair counters).
-- **Network**: roughly `1 + jobs/page_size + jobs` requests — about 50k requests for the example above. At the default 200 ms pacing, that's roughly 3 hours.
+- **Network**: roughly `1 + jobs/page_size + jobs` requests — about 50k requests for the example above. At the default 200 ms pacing, that's roughly 3 hours. In selective mode the formula changes to `1 (count) + ceil(selected_ids/200) job series + selected_jobs`, since only selected templates are walked and each series of up to 200 ids costs its own paginated request run.
 - **Disk**: the XLSX is small (single-digit MB even with 500k pair rows); the detail CSV is the larger artefact, ~100 MB per million summaries.

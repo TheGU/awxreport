@@ -60,7 +60,8 @@ playbook and host activity, plus a flat CSV of every job_host_summary row.
 
 The report is scoped by 'days_back' in the config (default 30); the report
 command's --start-date/--end-date flags override it. The token is read from
-the AWX_TOKEN environment variable; it is never read from the file.
+the AWX_TOKEN environment variable, or from 'token' in the config file as a
+fallback for scheduled runs; AWX_TOKEN wins when both are set.
 
 See https://github.com/TheGU/awxreport for full documentation.`,
 		Flags: []cli.Flag{
@@ -110,7 +111,13 @@ summaries, aggregates per-template and per-host counters, and writes:
   out/awx-rollout-detail-<ts>.csv    one row per job_host_summary
 
 Configure noisy template filtering under 'exclude_templates' in config.yaml.
-Use --start-date/--end-date to export an explicit window instead of days_back.`,
+Use --start-date/--end-date to export an explicit window instead of days_back.
+
+Selective mode scopes the report to specific job templates and/or projects
+instead of walking every job. Configure it under 'include' in config.yaml
+(template_ids / project_ids), or override at the command line with
+--template-ids/--project-ids; flags replace the config lists, they do not
+merge with them. exclude_templates rules still win over include.`,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "start-date",
@@ -120,11 +127,25 @@ Use --start-date/--end-date to export an explicit window instead of days_back.`,
 						Name:  "end-date",
 						Usage: "export window end, inclusive (YYYY-MM-DD, UTC; default now)",
 					},
+					&cli.IntSliceFlag{
+						Name:   "template-ids",
+						Usage:  "job template IDs to include (comma separated or repeated); replaces include.template_ids from config",
+						Config: cli.IntegerConfig{Base: 10},
+					},
+					&cli.IntSliceFlag{
+						Name:   "project-ids",
+						Usage:  "project IDs whose job templates are included; replaces include.project_ids from config",
+						Config: cli.IntegerConfig{Base: 10},
+					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
 					return withSignalContext(ctx, func(ctx context.Context) error {
-						return runReport(ctx, uiFromCmd(c), optsFromCmd(c),
-							c.String("start-date"), c.String("end-date"))
+						return runReport(ctx, uiFromCmd(c), optsFromCmd(c), reportOpts{
+							startDate:   c.String("start-date"),
+							endDate:     c.String("end-date"),
+							templateIDs: c.IntSlice("template-ids"),
+							projectIDs:  c.IntSlice("project-ids"),
+						})
 					})
 				},
 			},

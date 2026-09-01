@@ -4,12 +4,22 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/TheGU/awxreport/internal/aggregate"
 	"github.com/TheGU/awxreport/internal/awx"
 	"github.com/TheGU/awxreport/internal/report"
 )
+
+// reportOpts carries the report command's CLI flag values. Flags override
+// (never merge with) the corresponding config.yaml lists.
+type reportOpts struct {
+	startDate, endDate string
+	templateIDs        []int
+	projectIDs         []int
+}
 
 // reportWindow resolves the export window. startStr and endStr are
 // YYYY-MM-DD dates in UTC; the end date is inclusive. A missing end defaults
@@ -36,7 +46,7 @@ func reportWindow(startStr, endStr string, daysBack int, now time.Time) (since, 
 	return since, until, nil
 }
 
-func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate string) (retErr error) {
+func runReport(ctx context.Context, u *ui, opts globalOpts, ro reportOpts) (retErr error) {
 	cfg, client, err := loadAndConnect(opts)
 	if err != nil {
 		return err
@@ -52,9 +62,34 @@ func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate s
 	}
 
 	now := time.Now().UTC()
-	since, until, err := reportWindow(startDate, endDate, cfg.DaysBack, now)
+	since, until, err := reportWindow(ro.startDate, ro.endDate, cfg.DaysBack, now)
 	if err != nil {
 		return err
+	}
+
+	// Effective include: flags replace (never merge with) the config lists.
+	inc := cfg.Include
+	if len(ro.templateIDs) > 0 {
+		inc.TemplateIDs = ro.templateIDs
+	}
+	if len(ro.projectIDs) > 0 {
+		inc.ProjectIDs = ro.projectIDs
+	}
+	// Config-file ids are validated in config.go; flag-supplied ids bypass
+	// that path and need the same check here.
+	for _, id := range inc.TemplateIDs {
+		if id < 1 {
+			return fmt.Errorf("invalid template id %d: must be a positive integer", id)
+		}
+	}
+	for _, id := range inc.ProjectIDs {
+		if id < 1 {
+			return fmt.Errorf("invalid project id %d: must be a positive integer", id)
+		}
+	}
+	modeStr := "full"
+	if inc.Active() {
+		modeStr = fmt.Sprintf("selective (%d requested)", len(inc.TemplateIDs)+len(inc.ProjectIDs))
 	}
 
 	u.banner(fmt.Sprintf("awxreport — %s%s", cfg.BaseURL, cfg.APIRoot))
@@ -66,6 +101,7 @@ func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate s
 		{"pacing", fmt.Sprintf("%dms", cfg.RequestPacingMS)},
 		{"page size", fmt.Sprintf("%d", cfg.PageSize)},
 		{"debug dir", emptyDash(cfg.DebugDir)},
+		{"mode", modeStr},
 	})
 
 	// Step 1: lookup tables.
@@ -79,10 +115,29 @@ func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate s
 		len(lookups.Templates), len(lookups.Inventories), len(lookups.Hosts),
 		len(lookups.AnsibleHost), time.Since(t0).Seconds())
 
+	excl := aggregate.NewExcludeRules(cfg.ExcludeTemplates.IDs, cfg.ExcludeTemplates.NameContains)
+	selected, removed, err := aggregate.ResolveSelection(lookups, inc.TemplateIDs, inc.ProjectIDs, excl)
+	if err != nil {
+		return fmt.Errorf("selection: %w", err)
+	}
+
+	totalJobsInWindow := -1
+	if len(selected) > 0 {
+		u.ok("selection resolved: templates=%d removed_by_exclude=%d", len(selected), len(removed))
+		if len(removed) > 0 {
+			u.warn("removed from selection by exclude rules: %s", joinIntsComma(removed))
+		}
+		var countErr error
+		totalJobsInWindow, countErr = client.CountJobs(ctx, since, until)
+		if countErr != nil {
+			u.warn("could not count jobs in window: %v", countErr)
+			totalJobsInWindow = -1
+		}
+	}
+
 	// Step 2: stream jobs + summaries.
 	u.section("[2/3] Iterating jobs and host summaries")
-	excl := aggregate.NewExcludeRules(cfg.ExcludeTemplates.IDs, cfg.ExcludeTemplates.NameContains)
-	agg := aggregate.New(lookups, excl)
+	agg := aggregate.New(lookups, excl, selected)
 
 	csvOut, err := report.NewDetailCSV(cfg.OutputDir, now)
 	if err != nil {
@@ -90,8 +145,11 @@ func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate s
 	}
 
 	t1 := time.Now()
-	err = client.IterateJobsWithSummaries(ctx, since, until,
+	err = client.IterateJobsWithSummaries(ctx, since, until, selected,
 		func(j awx.JobLite) error {
+			if agg.Selected != nil && !agg.Selected[j.JobTemplate] {
+				return fmt.Errorf("controller returned job %d (template %d) outside the selection; job_template__in filter was not honored", j.ID, j.JobTemplate)
+			}
 			agg.AddJob(j)
 			if int(agg.JobsSeen)%10 == 0 {
 				u.progress("jobs=%d  summaries=%d  pairs=%d  rate=%s  elapsed=%s",
@@ -138,7 +196,16 @@ func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate s
 	// Step 3: render XLSX.
 	u.section("[3/3] Rendering XLSX")
 	t2 := time.Now()
-	xlsxPath, err := report.WriteXLSX(cfg.OutputDir, agg, since, until)
+	meta := report.RunMeta{
+		Selective:            len(selected) > 0,
+		RequestedTemplateIDs: inc.TemplateIDs,
+		RequestedProjectIDs:  inc.ProjectIDs,
+		SelectedTemplates:    selected,
+		RemovedByExclude:     removed,
+		TotalJobsInWindow:    totalJobsInWindow,
+		ResolvedAt:           now,
+	}
+	xlsxPath, err := report.WriteXLSX(cfg.OutputDir, agg, since, until, meta)
 	if err != nil {
 		return fmt.Errorf("write xlsx: %w", err)
 	}
@@ -146,13 +213,35 @@ func runReport(ctx context.Context, u *ui, opts globalOpts, startDate, endDate s
 
 	// Final summary.
 	u.section("Done")
-	u.table([][2]string{
+	summary := [][2]string{
 		{"jobs", fmt.Sprintf("%d", agg.JobsSeen)},
 		{"summaries", fmt.Sprintf("%d", agg.SummariesSeen)},
 		{"pairs", fmt.Sprintf("%d", len(agg.Pairs))},
 		{"xlsx", xlsxPath},
 		{"detail csv", csvOut.Path()},
 		{"elapsed", time.Since(t0).Truncate(time.Second).String()},
-	})
+	}
+	if meta.Selective {
+		jobsInWindowStr := "(not measured)"
+		jobsSkippedStr := "(not measured)"
+		if totalJobsInWindow >= 0 {
+			jobsInWindowStr = fmt.Sprintf("%d", totalJobsInWindow)
+			jobsSkippedStr = fmt.Sprintf("%d", totalJobsInWindow-int(agg.JobsSeen))
+		}
+		summary = append(summary,
+			[2]string{"jobs in window (all)", jobsInWindowStr},
+			[2]string{"jobs skipped by selection", jobsSkippedStr},
+		)
+	}
+	u.table(summary)
 	return nil
+}
+
+// joinIntsComma renders ids as a comma-separated string.
+func joinIntsComma(ids []int) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Itoa(id)
+	}
+	return strings.Join(parts, ",")
 }

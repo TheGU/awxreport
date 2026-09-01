@@ -5,23 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 )
 
 // ProbeResult is a tiny summary printed after probe finishes. Full JSON of
 // every page lands in DebugDir if configured.
 type ProbeResult struct {
-	PingOK             bool
-	MeUsername         string
-	JobTemplates       int
-	Inventories        int
-	Hosts              int
-	JobsInWindow       int
-	SampleJobID        int
-	SampleJobName      string
-	SampleJobStatus    string
-	SampleSummariesGot int
-	WindowFrom         string
+	PingOK               bool
+	MeUsername           string
+	JobTemplates         int
+	Inventories          int
+	Hosts                int
+	JobsInWindow         int
+	SampleJobID          int
+	SampleJobName        string
+	SampleJobStatus      string
+	SampleSummariesGot   int
+	WindowFrom           string
+	TemplateFilterTested bool
+	TemplateFilterOK     bool
+	TemplateFilterErr    string
 }
 
 // Probe walks the same endpoints the report will use, but pulls only one
@@ -34,9 +38,8 @@ type ProbeResult struct {
 //   - per-host outcomes: /api/v2/jobs/{id}/job_host_summaries/
 //
 // AWX 24.6.1 does NOT expose /api/v2/job_host_summaries/ as a top-level list
-// endpoint — only nested under jobs/{id} and hosts/{id}. Per-job iteration is
-// strictly more efficient than per-host because hosts with no recent activity
-// get skipped for free.
+// endpoint, only nested under jobs/{id} and hosts/{id}. Per-job fan-out costs
+// one request per job and can dominate on job-heavy controllers.
 func (c *Client) Probe(ctx context.Context, daysBack int) (*ProbeResult, error) {
 	res := &ProbeResult{}
 
@@ -142,6 +145,44 @@ func (c *Client) Probe(ctx context.Context, daysBack int) (*ProbeResult, error) 
 	})
 	if err != nil && err != errStop {
 		return res, fmt.Errorf("jobs: %w", err)
+	}
+
+	// Server-side job_template__in filter support probe. Selective mode
+	// depends on this filter; older controllers may reject it with a 400.
+	// TemplateFilterTested stays false when there is no job template to
+	// probe with (empty controller); that is not evidence either way.
+	{
+		var tplID int
+		terr := c.Paginate(ctx, "job_templates", "job_templates/", url.Values{"page_size": []string{"1"}},
+			func(ctx context.Context, p Page) error {
+				var rows []struct {
+					ID int `json:"id"`
+				}
+				if err := json.Unmarshal(p.Results, &rows); err != nil {
+					return fmt.Errorf("decode job_templates: %w", err)
+				}
+				if len(rows) > 0 {
+					tplID = rows[0].ID
+				}
+				return errStop
+			})
+		if terr != nil && terr != errStop {
+			return res, fmt.Errorf("job_templates (filter probe): %w", terr)
+		}
+		if tplID != 0 {
+			res.TemplateFilterTested = true
+			filterErr := c.Paginate(ctx, "jobs", "jobs/", url.Values{
+				"job_template__in": []string{strconv.Itoa(tplID)},
+				"page_size":        []string{"1"},
+			}, func(ctx context.Context, p Page) error {
+				return errStop
+			})
+			if filterErr != nil && filterErr != errStop {
+				res.TemplateFilterErr = filterErr.Error()
+			} else {
+				res.TemplateFilterOK = true
+			}
+		}
 	}
 
 	// Second pass: find a useful sample.

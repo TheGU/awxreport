@@ -13,6 +13,16 @@ type ExcludeTemplates struct {
 	NameContains []string `yaml:"name_contains"`
 }
 
+// IncludeFilter scopes the report to specific job templates and/or projects.
+// An empty filter means full mode (no filtering).
+type IncludeFilter struct {
+	TemplateIDs []int `yaml:"template_ids"`
+	ProjectIDs  []int `yaml:"project_ids"`
+}
+
+// Active reports whether selective mode should be used.
+func (i IncludeFilter) Active() bool { return len(i.TemplateIDs)+len(i.ProjectIDs) > 0 }
+
 type Config struct {
 	BaseURL            string           `yaml:"base_url"`
 	APIRoot            string           `yaml:"api_root"`
@@ -25,9 +35,12 @@ type Config struct {
 	OutputDir          string           `yaml:"output_dir"`
 	DebugDir           string           `yaml:"debug_dir"`
 	ExcludeTemplates   ExcludeTemplates `yaml:"exclude_templates"`
+	Include            IncludeFilter    `yaml:"include"`
 
-	// Populated from env, never from the file.
-	Token string `yaml:"-"`
+	// Token may come from the file (for scheduled runs with no shell to set
+	// an env var) or from AWX_TOKEN. AWX_TOKEN wins when set; the file value
+	// is the fallback.
+	Token string `yaml:"token"`
 }
 
 func Load(path string) (*Config, error) {
@@ -40,7 +53,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	c.applyDefaults()
-	c.Token = strings.TrimSpace(os.Getenv("AWX_TOKEN"))
+	if envToken := strings.TrimSpace(os.Getenv("AWX_TOKEN")); envToken != "" {
+		c.Token = envToken
+	}
+	c.Token = strings.TrimSpace(c.Token)
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -81,10 +97,20 @@ func (c *Config) validate() error {
 		return fmt.Errorf("base_url is required")
 	}
 	if c.Token == "" {
-		return fmt.Errorf("AWX_TOKEN environment variable is required")
+		return fmt.Errorf("token is required: set the AWX_TOKEN environment variable or 'token' in the config file")
 	}
 	if c.PageSize < 1 || c.PageSize > 200 {
 		return fmt.Errorf("page_size must be between 1 and 200")
+	}
+	for _, id := range c.Include.TemplateIDs {
+		if id < 1 {
+			return fmt.Errorf("include.template_ids: id must be a positive integer, got %d", id)
+		}
+	}
+	for _, id := range c.Include.ProjectIDs {
+		if id < 1 {
+			return fmt.Errorf("include.project_ids: id must be a positive integer, got %d", id)
+		}
 	}
 	return nil
 }
