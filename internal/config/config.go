@@ -37,8 +37,10 @@ type Config struct {
 	ExcludeTemplates   ExcludeTemplates `yaml:"exclude_templates"`
 	Include            IncludeFilter    `yaml:"include"`
 
-	// Populated from env, never from the file.
-	Token string `yaml:"-"`
+	// Token may come from the file (for scheduled runs with no shell to set
+	// an env var) or from AWX_TOKEN. AWX_TOKEN wins when set; the file value
+	// is the fallback.
+	Token string `yaml:"token"`
 }
 
 func Load(path string) (*Config, error) {
@@ -51,7 +53,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	c.applyDefaults()
-	c.Token = strings.TrimSpace(os.Getenv("AWX_TOKEN"))
+	if envToken := strings.TrimSpace(os.Getenv("AWX_TOKEN")); envToken != "" {
+		c.Token = envToken
+	}
+	c.Token = strings.TrimSpace(c.Token)
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -92,7 +97,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("base_url is required")
 	}
 	if c.Token == "" {
-		return fmt.Errorf("AWX_TOKEN environment variable is required")
+		return fmt.Errorf("token is required: set the AWX_TOKEN environment variable or 'token' in the config file")
 	}
 	if c.PageSize < 1 || c.PageSize > 200 {
 		return fmt.Errorf("page_size must be between 1 and 200")

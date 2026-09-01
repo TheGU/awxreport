@@ -57,7 +57,7 @@ Output lands in `./out/awx-rollout-<timestamp>.xlsx` and `./out/awx-rollout-deta
 
 ## Configuration
 
-All knobs live in `config.yaml`. The token is read only from the `AWX_TOKEN` env var — never from the file.
+All knobs live in `config.yaml`. The token is read from the `AWX_TOKEN` env var, or from the `token` key in the file as a fallback for scheduled runs; `AWX_TOKEN` wins when both are set.
 
 Key fields (see `config.example.yaml` for the full set):
 

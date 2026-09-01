@@ -1,5 +1,11 @@
 # AWX / AAP rollout report config.
-# Token is NOT read from this file. Set environment variable AWX_TOKEN before running.
+#
+# Token: prefer the AWX_TOKEN environment variable. For scheduled runs with
+# no shell available to set it, the token may instead be set with the
+# `token` key below; AWX_TOKEN still overrides it when set. If the token
+# lives in this file, restrict its permissions (e.g. chmod 600) so it is
+# not readable by other users on the host.
+# token: ""
 
 # Base URL of the AWX/AAP controller. No trailing slash.
 base_url: "https://awx.dev.example.local"

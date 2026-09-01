@@ -57,6 +57,8 @@ A cron entry on the same host:
 0 2 1 * * cd /opt/awxreport && AWX_TOKEN=$(cat /etc/awxreport/token) ./awxreport report >> /var/log/awxreport.log 2>&1
 ```
 
+Alternatively, set `token` directly in `config.yaml` and drop `AWX_TOKEN=$(cat ...)` from the cron line entirely; restrict `config.yaml`'s permissions (`chmod 600`) the same way you would the token file above. `AWX_TOKEN`, when set, still overrides whatever is in the file.
+
 Tips:
 
 - Store the token in a file readable only by the cron user: `chmod 600 /etc/awxreport/token`.

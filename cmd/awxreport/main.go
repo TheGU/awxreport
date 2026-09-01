@@ -60,7 +60,8 @@ playbook and host activity, plus a flat CSV of every job_host_summary row.
 
 The report is scoped by 'days_back' in the config (default 30); the report
 command's --start-date/--end-date flags override it. The token is read from
-the AWX_TOKEN environment variable; it is never read from the file.
+the AWX_TOKEN environment variable, or from 'token' in the config file as a
+fallback for scheduled runs; AWX_TOKEN wins when both are set.
 
 See https://github.com/TheGU/awxreport for full documentation.`,
 		Flags: []cli.Flag{

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Selective mode: scope the report to specific job template or project IDs
   via the config `include` block or `--template-ids`/`--project-ids`.
+- Allow the AWX/AAP token in config.yaml (`token` key); `AWX_TOKEN` still
+  overrides it when set.
 
 ### Changed
 - Bump `github.com/urfave/cli/v3` to 3.9.0 and `github.com/mattn/go-isatty`

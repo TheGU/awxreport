@@ -89,6 +89,34 @@ func TestLoad_FailsOnMissingToken(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing AWX_TOKEN")
 	}
+	want := "token is required: set the AWX_TOKEN environment variable or 'token' in the config file"
+	if err.Error() != want {
+		t.Errorf("err = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestLoad_TokenFromFileOnly(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "")
+	p := writeYAML(t, "base_url: https://awx.example.com\ntoken: filetok\n")
+	c, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.Token != "filetok" {
+		t.Errorf("Token = %q, want %q", c.Token, "filetok")
+	}
+}
+
+func TestLoad_EnvOverridesFileToken(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "envtok")
+	p := writeYAML(t, "base_url: https://awx.example.com\ntoken: filetok\n")
+	c, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.Token != "envtok" {
+		t.Errorf("Token = %q, want %q (env should win over file)", c.Token, "envtok")
+	}
 }
 
 func TestLoad_FailsOnMissingBaseURL(t *testing.T) {

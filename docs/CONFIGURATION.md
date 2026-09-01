@@ -2,9 +2,16 @@
 
 awxreport reads `config.yaml` from the working directory by default. Override with `-c PATH` or set `AWXREPORT_CONFIG=PATH`.
 
-The OAuth2 token is **never** read from the config file — it is read from the `AWX_TOKEN` environment variable only. This keeps tokens out of accidentally-committed config.
+The OAuth2 token is read from the `AWX_TOKEN` environment variable, or from the `token` key in the config file as a fallback for scheduled runs with no shell to set an env var. `AWX_TOKEN` always wins when it is set (even if `token` is also set in the file). Prefer `AWX_TOKEN` where possible, since it keeps the token out of accidentally-committed config; if you do put it in the file, restrict the file's permissions.
 
 ## Fields
+
+### `token` (string, default empty)
+OAuth2 personal token, as a fallback to the `AWX_TOKEN` environment variable for scheduled runs with no shell available to set it. `AWX_TOKEN` overrides this when set. Prefer the environment variable; if the token lives in this file, restrict its permissions (for example `chmod 600 config.yaml`) so it is not readable by other users on the host.
+
+```yaml
+token: "your-oauth2-token"
+```
 
 ### `base_url` (string, required)
 Full URL of the AWX or AAP controller. No trailing slash.
@@ -103,7 +110,7 @@ awxreport report --template-ids 4,9,12 --project-ids 2
 
 | Variable | Purpose |
 |---|---|
-| `AWX_TOKEN` | OAuth2 personal token. Required. |
+| `AWX_TOKEN` | OAuth2 personal token. Overrides the `token` config key when set. One of the two is required. |
 | `AWXREPORT_CONFIG` | Path to config file (overridden by `-c`). |
 | `NO_COLOR` | Disable ANSI colour output. Equivalent to `--no-color`. |
 

@@ -38,10 +38,14 @@ Out of scope:
 
 ## Hardening notes for users
 
-- Treat your AWX OAuth2 token as a secret. awxreport only reads it from
-  the `AWX_TOKEN` environment variable; it is never read from a config
-  file and never written to logs (the request log redacts the
-  Authorization header).
+- Treat your AWX OAuth2 token as a secret. awxreport reads it from the
+  `AWX_TOKEN` environment variable, or from the `token` key in the config
+  file as a fallback for scheduled runs; `AWX_TOKEN` always wins when set.
+  The token is never written to logs (the request log redacts the
+  Authorization header). Prefer `AWX_TOKEN` where possible; if the token
+  lives in the config file, restrict the file's permissions (e.g.
+  `chmod 600`) so it is not readable by other users on the host, and do
+  not commit it.
 - `insecure_skip_verify: true` disables TLS verification. It exists only
   for development against self-signed certs; never set it in production.
 - The debug dump (`-debug ./dir`) writes the full JSON of every API
