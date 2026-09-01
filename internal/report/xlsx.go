@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/xuri/excelize/v2"
@@ -12,10 +14,21 @@ import (
 	"github.com/TheGU/awxreport/internal/aggregate"
 )
 
+// RunMeta describes how the report was scoped, for the Meta sheet.
+type RunMeta struct {
+	Selective            bool
+	RequestedTemplateIDs []int
+	RequestedProjectIDs  []int
+	SelectedTemplates    []int
+	RemovedByExclude     []int
+	TotalJobsInWindow    int // unfiltered controller count; -1 when not measured
+	ResolvedAt           time.Time
+}
+
 // WriteXLSX renders the four-sheet report. It uses excelize StreamWriter so
 // the PlaybookHosts sheet (potentially hundreds of thousands of rows) doesn't
 // hold the whole grid in memory.
-func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo time.Time) (path string, retErr error) {
+func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo time.Time, meta RunMeta) (path string, retErr error) {
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil && retErr == nil {
@@ -52,7 +65,7 @@ func WriteXLSX(outDir string, agg *aggregate.Aggregator, windowFrom, windowTo ti
 	if err := writeExcluded(f, agg); err != nil {
 		return "", fmt.Errorf("excluded sheet: %w", err)
 	}
-	if err := writeMeta(f, agg, windowFrom, windowTo); err != nil {
+	if err := writeMeta(f, agg, windowFrom, windowTo, meta); err != nil {
 		return "", fmt.Errorf("meta sheet: %w", err)
 	}
 
@@ -256,7 +269,7 @@ func writeExcluded(f *excelize.File, agg *aggregate.Aggregator) error {
 	return sw.Flush()
 }
 
-func writeMeta(f *excelize.File, agg *aggregate.Aggregator, from, to time.Time) error {
+func writeMeta(f *excelize.File, agg *aggregate.Aggregator, from, to time.Time, meta RunMeta) error {
 	rows := [][]any{
 		{"Generated (UTC)", time.Now().UTC().Format(time.RFC3339)},
 		{"Window from (UTC)", from.UTC().Format(time.RFC3339)},
@@ -268,6 +281,30 @@ func writeMeta(f *excelize.File, agg *aggregate.Aggregator, from, to time.Time) 
 		{"Hosts in lookup", len(agg.Lookups.Hosts)},
 		{"Inventories in lookup", len(agg.Lookups.Inventories)},
 	}
+	if meta.Selective {
+		var totalJobsCell, skippedCell any
+		if meta.TotalJobsInWindow < 0 {
+			totalJobsCell = "(not measured)"
+			skippedCell = "(not measured)"
+		} else {
+			totalJobsCell = meta.TotalJobsInWindow
+			skippedCell = int64(meta.TotalJobsInWindow) - agg.JobsSeen
+		}
+		rows = append(rows, []any{"Mode", "selective"})
+		rows = append(rows,
+			[]any{"Requested template IDs", joinIDsOrNone(meta.RequestedTemplateIDs)},
+			[]any{"Requested project IDs", joinIDsOrNone(meta.RequestedProjectIDs)},
+			[]any{"Selected templates (resolved)", fmt.Sprintf("%d: %s", len(meta.SelectedTemplates), joinIDsOrNone(meta.SelectedTemplates))},
+			[]any{"Removed from selection by exclude rules", joinIDsOrNone(meta.RemovedByExclude)},
+			[]any{"Total jobs in window (unfiltered)", totalJobsCell},
+			[]any{"Jobs fetched (selected)", agg.JobsSeen},
+			[]any{"Jobs skipped by selection", skippedCell},
+			[]any{"Selection resolved from controller state at (UTC)", meta.ResolvedAt.UTC().Format(time.RFC3339)},
+			[]any{"Note", "project membership reflects controller state at report time, not historical state"},
+		)
+	} else {
+		rows = append(rows, []any{"Mode", "full"})
+	}
 	for i, r := range rows {
 		cell, _ := excelize.CoordinatesToCellName(1, i+1)
 		if err := f.SetSheetRow("Meta", cell, &r); err != nil {
@@ -275,6 +312,19 @@ func writeMeta(f *excelize.File, agg *aggregate.Aggregator, from, to time.Time) 
 		}
 	}
 	return nil
+}
+
+// joinIDsOrNone renders a sorted id list as a comma-separated string, or
+// "(none)" when empty.
+func joinIDsOrNone(ids []int) string {
+	if len(ids) == 0 {
+		return "(none)"
+	}
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Itoa(id)
+	}
+	return strings.Join(parts, ",")
 }
 
 // sortedTemplateIDs returns template IDs filtered by Excluded flag, sorted by name.

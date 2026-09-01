@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Selective mode: scope the report to specific job template or project IDs
+  via the config `include` block or `--template-ids`/`--project-ids`.
+
 ### Changed
 - Bump `github.com/urfave/cli/v3` to 3.9.0 and `github.com/mattn/go-isatty`
   to 0.0.22. Release workflow now uses goreleaser-action v7 (Node 24).

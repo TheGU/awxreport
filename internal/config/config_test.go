@@ -114,6 +114,46 @@ func TestLoad_FailsOnBadPageSize(t *testing.T) {
 	}
 }
 
+func TestLoad_IncludeBlockParses(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "tok")
+	p := writeYAML(t, "base_url: https://awx.example.com\ninclude:\n  template_ids: [4, 9]\n  project_ids: [2]\n")
+	c, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !c.Include.Active() {
+		t.Error("Include.Active() = false, want true")
+	}
+	if len(c.Include.TemplateIDs) != 2 || len(c.Include.ProjectIDs) != 1 {
+		t.Errorf("Include = %+v, want template_ids=[4 9] project_ids=[2]", c.Include)
+	}
+}
+
+func TestLoad_AbsentIncludeBlockIsInactive(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "tok")
+	p := writeYAML(t, "base_url: https://awx.example.com\n")
+	c, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.Include.Active() {
+		t.Error("Include.Active() = true, want false for absent include block")
+	}
+}
+
+func TestLoad_FailsOnNonPositiveIncludeID(t *testing.T) {
+	t.Setenv("AWX_TOKEN", "tok")
+	for _, body := range []string{
+		"base_url: https://awx.example.com\ninclude:\n  template_ids: [0]\n",
+		"base_url: https://awx.example.com\ninclude:\n  project_ids: [-1]\n",
+	} {
+		p := writeYAML(t, body)
+		if _, err := Load(p); err == nil {
+			t.Errorf("body %q: expected validation error", body)
+		}
+	}
+}
+
 func TestLoad_FailsOnMissingFile(t *testing.T) {
 	t.Setenv("AWX_TOKEN", "tok")
 	_, err := Load(filepath.Join(t.TempDir(), "nope.yaml"))

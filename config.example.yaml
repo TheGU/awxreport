@@ -33,3 +33,13 @@ exclude_templates:
     - "health check"
     - "service probe"
     - "heartbeat"
+
+# Selective mode: scope the report to specific job templates and/or projects
+# instead of walking every job. Empty lists (the default) mean a full report.
+# Listing template_ids and/or project_ids switches to selective mode.
+# Project ids are resolved to their current job templates at run time.
+# exclude_templates always wins: a template matching both include and
+# exclude_templates is removed from the selection.
+include:
+  template_ids: []
+  project_ids: []

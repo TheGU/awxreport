@@ -76,8 +76,12 @@ type InventoryLite struct {
 }
 
 // TemplateLite is what we cache from /api/v2/job_templates/.
+//
+// Project may be null on the controller for some templates; encoding/json
+// leaves Project at its zero value in that case, no decode error.
 type TemplateLite struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
 	Playbook string `json:"playbook"`
+	Project  int    `json:"project"`
 }

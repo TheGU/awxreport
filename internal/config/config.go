@@ -13,6 +13,16 @@ type ExcludeTemplates struct {
 	NameContains []string `yaml:"name_contains"`
 }
 
+// IncludeFilter scopes the report to specific job templates and/or projects.
+// An empty filter means full mode (no filtering).
+type IncludeFilter struct {
+	TemplateIDs []int `yaml:"template_ids"`
+	ProjectIDs  []int `yaml:"project_ids"`
+}
+
+// Active reports whether selective mode should be used.
+func (i IncludeFilter) Active() bool { return len(i.TemplateIDs)+len(i.ProjectIDs) > 0 }
+
 type Config struct {
 	BaseURL            string           `yaml:"base_url"`
 	APIRoot            string           `yaml:"api_root"`
@@ -25,6 +35,7 @@ type Config struct {
 	OutputDir          string           `yaml:"output_dir"`
 	DebugDir           string           `yaml:"debug_dir"`
 	ExcludeTemplates   ExcludeTemplates `yaml:"exclude_templates"`
+	Include            IncludeFilter    `yaml:"include"`
 
 	// Populated from env, never from the file.
 	Token string `yaml:"-"`
@@ -85,6 +96,16 @@ func (c *Config) validate() error {
 	}
 	if c.PageSize < 1 || c.PageSize > 200 {
 		return fmt.Errorf("page_size must be between 1 and 200")
+	}
+	for _, id := range c.Include.TemplateIDs {
+		if id < 1 {
+			return fmt.Errorf("include.template_ids: id must be a positive integer, got %d", id)
+		}
+	}
+	for _, id := range c.Include.ProjectIDs {
+		if id < 1 {
+			return fmt.Errorf("include.project_ids: id must be a positive integer, got %d", id)
+		}
 	}
 	return nil
 }

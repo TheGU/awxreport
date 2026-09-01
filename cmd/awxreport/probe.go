@@ -44,6 +44,14 @@ func runProbe(ctx context.Context, u *ui, opts globalOpts) (retErr error) {
 	u.ok("inventories: %d", res.Inventories)
 	u.ok("hosts: %d", res.Hosts)
 	u.ok("jobs in last %dd: %d  (since %s)", cfg.DaysBack, res.JobsInWindow, res.WindowFrom)
+	switch {
+	case !res.TemplateFilterTested:
+		u.warn("job_template__in filter not tested: no job templates on controller")
+	case res.TemplateFilterOK:
+		u.ok("server-side template filter (job_template__in): supported")
+	default:
+		u.warn("job_template__in filter check failed: %s (selective mode may not work)", res.TemplateFilterErr)
+	}
 	if res.SampleJobID != 0 {
 		u.ok("sample job: id=%d %q status=%s — %d host summaries",
 			res.SampleJobID, res.SampleJobName, res.SampleJobStatus, res.SampleSummariesGot)

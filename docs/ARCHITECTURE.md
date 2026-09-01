@@ -52,6 +52,8 @@ Public API (`internal/`) is intentionally not exported — this is a tool, not a
    (5 sheets via streamwriter)         (one row per summary)
 ```
 
+In selective mode, `IterateJobs` additionally applies a server-side `job_template__in` filter (chunked into batches of 200 ids) so only jobs for the selected templates are ever fetched.
+
 ## Why per-job iteration
 
 AWX 24.6.1 does not expose a top-level `/api/v2/job_host_summaries/` list

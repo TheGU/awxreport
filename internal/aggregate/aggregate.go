@@ -121,6 +121,13 @@ type Aggregator struct {
 	Lookups *awx.Lookups
 	Exclude ExcludeRules
 
+	// Selected is the selective-mode template id set (nil in full mode). Set
+	// once at construction. AddJob/AddSummary do not filter against it; the
+	// report loop consults it directly to detect a controller that silently
+	// ignores the job_template__in filter and returns jobs outside the
+	// selection (see cmd/awxreport's report command).
+	Selected map[int]bool
+
 	Templates map[int]*TemplateAgg
 	Hosts     map[int]*HostAgg
 	Pairs     map[PairKey]*PairAgg
@@ -137,7 +144,7 @@ type Aggregator struct {
 	UnknownTplJobs int64 // jobs whose template_id is not in lookups
 }
 
-func New(l *awx.Lookups, ex ExcludeRules) *Aggregator {
+func New(l *awx.Lookups, ex ExcludeRules, selected []int) *Aggregator {
 	a := &Aggregator{
 		Lookups:    l,
 		Exclude:    ex,
@@ -146,10 +153,20 @@ func New(l *awx.Lookups, ex ExcludeRules) *Aggregator {
 		Pairs:      make(map[PairKey]*PairAgg),
 		synthHosts: make(map[string]int),
 	}
+	if len(selected) > 0 {
+		a.Selected = make(map[int]bool, len(selected))
+		for _, id := range selected {
+			a.Selected[id] = true
+		}
+	}
 	// Pre-populate templates so excluded ones still appear with zero job
-	// counts if no jobs ran for them in the window. Same for hosts — useful
-	// for "ever_successful = false" semantic when a host had zero runs.
+	// counts if no jobs ran for them in the window. In selective mode only
+	// selected templates are pre-created so the Playbooks sheet cannot show
+	// unselected templates as false zero rows.
 	for id, t := range l.Templates {
+		if a.Selected != nil && !a.Selected[id] {
+			continue
+		}
 		a.Templates[id] = &TemplateAgg{
 			ID: id, Name: t.Name, Playbook: t.Playbook,
 			DistinctHosts: make(map[int]struct{}),
@@ -159,15 +176,23 @@ func New(l *awx.Lookups, ex ExcludeRules) *Aggregator {
 			a.Templates[id].ExcludeReason = why
 		}
 	}
-	for id, h := range l.Hosts {
-		invID, invName := l.HostInventoryName(id)
-		a.Hosts[id] = &HostAgg{
-			ID: id, Name: h.Name,
-			AnsibleHost:       l.AnsibleHost[id],
-			InventoryID:       invID,
-			InventoryName:     invName,
-			Enabled:           h.Enabled,
-			DistinctTemplates: make(map[int]struct{}),
+	// Pre-populate hosts too, for the same "zero runs" reason above -- but
+	// only in full mode. In selective mode we don't know in advance which
+	// hosts the selected templates touch, so pre-populating every host in
+	// the lookup would make the Hosts sheet list hosts unrelated to the
+	// selection; hosts are instead created lazily by AddSummary as they
+	// show up in fetched job_host_summary rows.
+	if a.Selected == nil {
+		for id, h := range l.Hosts {
+			invID, invName := l.HostInventoryName(id)
+			a.Hosts[id] = &HostAgg{
+				ID: id, Name: h.Name,
+				AnsibleHost:       l.AnsibleHost[id],
+				InventoryID:       invID,
+				InventoryName:     invName,
+				Enabled:           h.Enabled,
+				DistinctTemplates: make(map[int]struct{}),
+			}
 		}
 	}
 	return a

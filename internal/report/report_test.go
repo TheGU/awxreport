@@ -26,7 +26,7 @@ func newAgg(t *testing.T) *aggregate.Aggregator {
 		},
 		AnsibleHost: map[int]string{6: "10.0.0.6"},
 	}
-	a := aggregate.New(l, aggregate.NewExcludeRules([]int{99}, nil))
+	a := aggregate.New(l, aggregate.NewExcludeRules([]int{99}, nil), nil)
 	a.AddJob(awx.JobLite{ID: 1, JobTemplate: 40, Status: "successful",
 		Finished: time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)})
 	a.AddJob(awx.JobLite{ID: 2, JobTemplate: 99, Status: "successful",
@@ -56,7 +56,7 @@ func TestWriteXLSX_AllSheetsPresent(t *testing.T) {
 	from := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 
-	path, err := WriteXLSX(dir, a, from, to)
+	path, err := WriteXLSX(dir, a, from, to, RunMeta{})
 	if err != nil {
 		t.Fatalf("WriteXLSX: %v", err)
 	}
@@ -116,6 +116,118 @@ func TestWriteXLSX_AllSheetsPresent(t *testing.T) {
 	}
 	if !found99 {
 		t.Error("template 99 missing from Excluded sheet")
+	}
+}
+
+func TestWriteXLSX_SelectiveMetaRows(t *testing.T) {
+	l := &awx.Lookups{
+		Templates: map[int]awx.TemplateLite{
+			40: {ID: 40, Name: "Probe", Playbook: "p.yml"},
+		},
+	}
+	a := aggregate.New(l, aggregate.NewExcludeRules(nil, nil), []int{40})
+	a.AddJob(awx.JobLite{ID: 1, JobTemplate: 40, Status: "successful",
+		Finished: time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)})
+
+	dir := t.TempDir()
+	from := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	meta := RunMeta{
+		Selective:            true,
+		RequestedTemplateIDs: []int{40},
+		SelectedTemplates:    []int{40},
+		TotalJobsInWindow:    5,
+		ResolvedAt:           time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	path, err := WriteXLSX(dir, a, from, to, meta)
+	if err != nil {
+		t.Fatalf("WriteXLSX: %v", err)
+	}
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rows, err := f.GetRows("Meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundMode := false
+	foundSkipped := false
+	for _, r := range rows {
+		if len(r) < 2 {
+			continue
+		}
+		if r[0] == "Mode" && r[1] == "selective" {
+			foundMode = true
+		}
+		if r[0] == "Jobs skipped by selection" && r[1] == "4" {
+			foundSkipped = true
+		}
+	}
+	if !foundMode {
+		t.Errorf("Meta sheet missing 'Mode'/'selective' row: %v", rows)
+	}
+	if !foundSkipped {
+		t.Errorf("Meta sheet missing 'Jobs skipped by selection'=4 row: %v", rows)
+	}
+}
+
+func TestWriteXLSX_SelectiveMetaRows_NotMeasured(t *testing.T) {
+	l := &awx.Lookups{
+		Templates: map[int]awx.TemplateLite{
+			40: {ID: 40, Name: "Probe", Playbook: "p.yml"},
+		},
+	}
+	a := aggregate.New(l, aggregate.NewExcludeRules(nil, nil), []int{40})
+	a.AddJob(awx.JobLite{ID: 1, JobTemplate: 40, Status: "successful",
+		Finished: time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)})
+
+	dir := t.TempDir()
+	from := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	meta := RunMeta{
+		Selective:            true,
+		RequestedTemplateIDs: []int{40},
+		SelectedTemplates:    []int{40},
+		TotalJobsInWindow:    -1,
+		ResolvedAt:           time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	path, err := WriteXLSX(dir, a, from, to, meta)
+	if err != nil {
+		t.Fatalf("WriteXLSX: %v", err)
+	}
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rows, err := f.GetRows("Meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundTotal := false
+	foundSkipped := false
+	for _, r := range rows {
+		if len(r) < 2 {
+			continue
+		}
+		if r[0] == "Total jobs in window (unfiltered)" && r[1] == "(not measured)" {
+			foundTotal = true
+		}
+		if r[0] == "Jobs skipped by selection" && r[1] == "(not measured)" {
+			foundSkipped = true
+		}
+	}
+	if !foundTotal {
+		t.Errorf("Meta sheet missing '(not measured)' total jobs row: %v", rows)
+	}
+	if !foundSkipped {
+		t.Errorf("Meta sheet missing '(not measured)' skipped jobs row: %v", rows)
 	}
 }
 

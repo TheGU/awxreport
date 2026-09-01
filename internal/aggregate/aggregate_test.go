@@ -15,6 +15,11 @@ func fixedT(n int) time.Time {
 
 func newTestAgg(t *testing.T, ex ExcludeRules) *Aggregator {
 	t.Helper()
+	return newTestAggSelected(t, ex, nil)
+}
+
+func newTestAggSelected(t *testing.T, ex ExcludeRules, selected []int) *Aggregator {
+	t.Helper()
 	// Build HostLite via JSON so we don't have to reproduce anonymous
 	// struct literals in tests.
 	var host awx.HostLite
@@ -33,7 +38,7 @@ func newTestAgg(t *testing.T, ex ExcludeRules) *Aggregator {
 		},
 		AnsibleHost: map[int]string{6: "10.0.0.6"},
 	}
-	return New(l, ex)
+	return New(l, ex, selected)
 }
 
 func mkSummary(jobID, hostID, tplID int, tplName string, failed bool, mod time.Time) awx.SummaryLite {
@@ -224,5 +229,38 @@ func TestAddSummary_LazyTemplateInheritsExcludeFromName(t *testing.T) {
 	got := a.Templates[500]
 	if got == nil || !got.Excluded {
 		t.Errorf("template 500 should be excluded by name match: %+v", got)
+	}
+}
+
+func TestNew_SelectivePrePopulatesOnlySelectedTemplates(t *testing.T) {
+	a := newTestAggSelected(t, NewExcludeRules(nil, nil), []int{40})
+	if _, ok := a.Templates[40]; !ok {
+		t.Error("template 40 should be pre-populated (selected)")
+	}
+	if _, ok := a.Templates[99]; ok {
+		t.Error("template 99 should not be pre-populated (not selected)")
+	}
+	if !a.Selected[40] || a.Selected[99] {
+		t.Errorf("Selected = %v, want only 40 set", a.Selected)
+	}
+
+	a.AddJob(awx.JobLite{ID: 1, JobTemplate: 40, Status: "successful", Finished: fixedT(1)})
+	if a.Templates[40].Jobs != 1 {
+		t.Errorf("AddJob for selected template 40: Jobs = %d, want 1", a.Templates[40].Jobs)
+	}
+}
+
+func TestNew_SelectiveLeavesHostsEmptyUntilSummaries(t *testing.T) {
+	a := newTestAggSelected(t, NewExcludeRules(nil, nil), []int{40})
+	if len(a.Hosts) != 0 {
+		t.Errorf("Hosts = %v, want empty right after New in selective mode", a.Hosts)
+	}
+
+	a.AddSummary(mkSummary(1, 6, 40, "Check Auth Key", false, fixedT(1)))
+	if _, ok := a.Hosts[6]; !ok {
+		t.Error("host 6 should be created lazily by AddSummary in selective mode")
+	}
+	if len(a.Hosts) != 1 {
+		t.Errorf("Hosts = %d entries, want 1", len(a.Hosts))
 	}
 }
