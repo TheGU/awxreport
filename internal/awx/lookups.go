@@ -3,8 +3,12 @@ package awx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/url"
+	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -76,6 +80,47 @@ func (c *Client) FetchLookups(ctx context.Context) (*Lookups, error) {
 	}
 
 	return out, nil
+}
+
+// FetchActiveHostIDs pages hosts/?last_job__finished__gte=<since> collecting
+// ids, for the per_host summary strategy's host-pruning step. A 400 from the
+// controller means the filter is not supported there -- returns (nil, false,
+// nil) so the caller can fall back to walking every host with a warning;
+// any other error propagates. Returns ids sorted ascending.
+func (c *Client) FetchActiveHostIDs(ctx context.Context, since time.Time) ([]int, bool, error) {
+	// A host whose last job is still running has last_job.finished == null,
+	// so a plain last_job__finished__gte filter would prune it even though
+	// it may already have completed in-window summaries from earlier hosts
+	// in the same job. or__ combines the two clauses as OR, at the cost of
+	// also harmlessly including hosts that have never run a job (their
+	// per-host walk just returns zero rows).
+	q := url.Values{
+		"or__last_job__finished__gte":    []string{since.UTC().Format(time.RFC3339)},
+		"or__last_job__finished__isnull": []string{"True"},
+		"order_by":                       []string{"id"},
+	}
+	var ids []int
+	err := c.Paginate(ctx, "hosts", "hosts/", q, func(_ context.Context, p Page) error {
+		var rows []struct {
+			ID int `json:"id"`
+		}
+		if err := json.Unmarshal(p.Results, &rows); err != nil {
+			return fmt.Errorf("decode hosts page: %w", err)
+		}
+		for _, r := range rows {
+			ids = append(ids, r.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		var statusErr *StatusError
+		if errors.As(err, &statusErr) && statusErr.Code == 400 {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	sort.Ints(ids)
+	return ids, true, nil
 }
 
 // extractAnsibleHost parses the host `variables` blob (YAML or JSON) and

@@ -139,9 +139,10 @@ type Aggregator struct {
 	synthSeq   int
 
 	// Counters for the report header / log.
-	JobsSeen       int64
-	SummariesSeen  int64
-	UnknownTplJobs int64 // jobs whose template_id is not in lookups
+	JobsSeen            int64
+	SummariesSeen       int64
+	UnknownTplJobs      int64 // jobs whose template_id is not in lookups
+	SummariesUnknownTpl int64 // summaries whose summary_fields.job is missing, so no template id could be resolved
 }
 
 func New(l *awx.Lookups, ex ExcludeRules, selected []int) *Aggregator {
@@ -249,6 +250,7 @@ func (a *Aggregator) AddSummary(s awx.SummaryLite) {
 	if tplID == 0 {
 		// We can't bucket this row anywhere meaningful. Skip silently —
 		// counted in SummariesSeen but not reflected per-template.
+		a.SummariesUnknownTpl++
 		return
 	}
 	t := a.getOrInitTemplate(tplID, tplName)

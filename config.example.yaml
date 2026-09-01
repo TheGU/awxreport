@@ -22,6 +22,23 @@ request_pacing_ms: 200 # sleep between page fetches
 http_timeout_sec: 60
 max_retries: 5 # retries on 429 / 5xx with exponential backoff
 
+# How many job (or host) summary fetches run concurrently, 1..8. Total
+# request throughput is still capped by the pacing gate at
+# 1000/request_pacing_ms requests per second regardless of this value --
+# more workers hides round-trip latency, it does not raise the request rate.
+summary_workers: 4
+
+# How job_host_summary rows are fetched:
+#   per_job  (default) - walk jobs/{id}/job_host_summaries/ for every job.
+#            Full fidelity: sees rows with a null host (ad-hoc/localhost
+#            plays) and rows for hosts deleted since their jobs ran.
+#   per_host - walk hosts/{id}/job_host_summaries/ for every active host
+#              instead. Far fewer requests on job-heavy controllers, but
+#              cannot see the row classes above -- they are silently missing
+#              from the report. Not supported in selective mode. There is no
+#              "auto" value; this is opt-in.
+summary_strategy: per_job
+
 # TLS. Set to true ONLY for dev with self-signed certs.
 insecure_skip_verify: true
 

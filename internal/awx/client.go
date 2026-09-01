@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -74,6 +75,7 @@ func New(baseURL, token string, opts Options) (*Client, error) {
 	tr := &http.Transport{
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: opts.InsecureSkipVerify},
 		MaxIdleConns:          10,
+		MaxIdleConnsPerHost:   8, // Go's default of 2 would force a TLS handshake per request under concurrency
 		IdleConnTimeout:       90 * time.Second,
 		ResponseHeaderTimeout: opts.HTTPTimeout,
 	}
@@ -139,21 +141,32 @@ func (c *Client) URL(path string, query url.Values) string {
 // `endpoint` is a short label (e.g. "job_host_summaries") used for debug
 // filenames and the request log. It does NOT have to match the URL path.
 func (c *Client) Get(ctx context.Context, endpoint, urlStr string) ([]byte, error) {
-	c.pace()
-
 	var lastErr error
 	for attempt := 0; attempt <= c.MaxRetry; attempt++ {
+		// Under fan-out, a queued request would otherwise pay a full pacing
+		// interval per attempt even after the caller's context is cancelled.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if attempt > 0 {
 			backoff := time.Duration(1<<attempt) * time.Second
 			if backoff > 30*time.Second {
 				backoff = 30 * time.Second
 			}
+			// Jitter within [backoff/2, backoff] so concurrent workers that
+			// all hit a shared 429 do not retry in lockstep.
+			half := backoff / 2
+			jittered := half + time.Duration(rand.Int64N(int64(half)+1))
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(backoff):
+			case <-time.After(jittered):
 			}
 		}
+		// Paced on every attempt (not just the first) so retries from one
+		// caller and requests from concurrent callers all share the same
+		// rate budget.
+		c.pace()
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 		if err != nil {
@@ -204,13 +217,28 @@ func (c *Client) Get(ctx context.Context, endpoint, urlStr string) ([]byte, erro
 		case resp.StatusCode == 401, resp.StatusCode == 403:
 			return nil, fmt.Errorf("auth error %d: check AWX_TOKEN — %s", resp.StatusCode, truncate(body, 200))
 		default:
-			return nil, fmt.Errorf("%d %s: %s", resp.StatusCode, resp.Status, truncate(body, 200))
+			return nil, &StatusError{Code: resp.StatusCode, Status: resp.Status, Body: truncate(body, 200)}
 		}
 	}
 	if lastErr == nil {
 		lastErr = errors.New("exhausted retries")
 	}
 	return nil, lastErr
+}
+
+// StatusError carries an HTTP status code from a non-2xx response that Get
+// did not already classify with its own error type (429, 5xx, 401/403 all
+// get their own handling above; this is everything else, notably 400).
+// Callers that need to distinguish a specific status (e.g. FetchActiveHostIDs
+// treating 400 as "filter unsupported") can errors.As into this type.
+type StatusError struct {
+	Code   int
+	Status string
+	Body   string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%d %s: %s", e.Code, e.Status, e.Body)
 }
 
 // GetJSON executes Get and decodes JSON into out.
@@ -225,6 +253,9 @@ func (c *Client) GetJSON(ctx context.Context, endpoint, urlStr string, out any) 
 	return nil
 }
 
+// pace enforces the global minimum delay between requests. It does not take
+// a context, so under concurrency a ctx cancellation can be delayed by up to
+// workers*Pacing before the last goroutine waiting here notices.
 func (c *Client) pace() {
 	if c.Pacing <= 0 {
 		return

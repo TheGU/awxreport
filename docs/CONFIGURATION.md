@@ -45,7 +45,22 @@ Minimum delay between API requests, enforced across the whole client. Lower valu
 Per-request HTTP timeout.
 
 ### `max_retries` (integer, default `5`)
-Retries on `429` and `5xx` responses. Backoff is exponential and capped at 30 s; `Retry-After` headers are honoured when present.
+Retries on `429` and `5xx` responses. Backoff is exponential and capped at 30 s, with jitter (half to full backoff) so concurrent workers retrying after a shared `429` don't all retry in lockstep; `Retry-After` headers are honoured when present.
+
+### `summary_workers` (integer, default `4`, range `1..8`)
+How many job (or host) summary fetches run concurrently. Total request throughput is still capped by the pacing gate at `1000/request_pacing_ms` requests per second regardless of this value -- more workers hides round-trip latency behind concurrency, it does not raise the request rate. Set to `1` for deterministic debug-dump and CSV row ordering; with `summary_workers > 1`, debug dump sequence numbers and the detail CSV's row order are nondeterministic (summaries for different jobs/hosts interleave depending on which fetch finishes first).
+
+### `summary_strategy` (string, default `"per_job"`)
+How `job_host_summary` rows are fetched. There is no `"auto"` value; this is opt-in.
+
+- `per_job` (default): walk `jobs/{id}/job_host_summaries/` for every job in the window. Full fidelity -- sees rows with a null host (ad-hoc/localhost plays) and rows for hosts deleted since their jobs ran.
+- `per_host`: walk `hosts/{id}/job_host_summaries/` for every active host instead. Far fewer requests on job-heavy controllers (roughly one series per host instead of one per job), but:
+  - Cannot see summary rows whose host record is gone: rows with a null host, and rows for hosts deleted since their jobs ran, are silently missing from the report. Use `per_job` when you need full fidelity.
+  - Not supported in selective mode (`include.template_ids`/`include.project_ids` or `--template-ids`/`--project-ids`); selective runs always use the per-job path, and the report fails fast if both are set.
+  - Requires the controller to support `job__finished__gte`/`job__finished__lt` filtering on `hosts/{id}/job_host_summaries/`. The report runs a mandatory one-request pre-flight before committing to the walk and aborts with a clear error if that filter isn't supported (`awxreport probe` also checks this ahead of time).
+  - CSV rows arrive host-major (grouped by host, not by job id) instead of the `per_job` path's job-id order.
+  - "Summaries seen" in the Meta sheet is not directly comparable between strategies: `per_host` counts whatever the host walk actually returned, which by design excludes the null-host/deleted-host rows `per_job` would have counted.
+  - The Meta sheet's "Hosts walked" and "Host pruning" rows record how many hosts were walked and whether the active-host filter narrowed that set (falls back to every known host, with a warning, if the controller doesn't support it). The active-host filter itself includes a host whose last job is still running (`last_job.finished` is null) as well as one that finished in-window, so a host mid-run isn't wrongly pruned; this also harmlessly pulls in hosts that have never run a job, whose walk just returns zero rows.
 
 ### `insecure_skip_verify` (boolean, default `false`)
 Disables TLS certificate verification. Only use this for development against self-signed certs. Never set this in production.
@@ -97,6 +112,14 @@ awxreport report --template-ids 4,9,12 --project-ids 2
 ```
 
 `--template-ids` and `--project-ids` **replace** the corresponding config list; they never merge with it. Passing an empty/omitted flag leaves the config value in place.
+
+Pass `--full` to ignore the `include` block entirely for one run and produce a full report, without editing `config.yaml`:
+
+```bash
+awxreport report --full
+```
+
+`--full` cannot be combined with `--template-ids`/`--project-ids` -- that's a startup error. When `--full` overrides a non-empty config `include` block, the Meta sheet records a "Full mode forced by --full" row naming the ignored ids.
 
 **Precedence:** `exclude_templates` always wins over `include`. A template that matches both is removed from the selection before any data is fetched; if that empties the selection entirely, the report fails with an error rather than silently falling back to full mode.
 
